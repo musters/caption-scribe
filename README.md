@@ -23,8 +23,10 @@ render on screen.
 
 ## Requirements
 
-- Windows 10, build 19041 (2004) or later
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Windows 10, build 19041 (2004) or later, Windows 11
+- [.NET 8 SDK]
+   - Install via winget (quiet, command-line): `winget install --id Microsoft.DotNet.SDK.8 -e`
+     Or download and run installer from: https://dotnet.microsoft.com/download/dotnet/8.0
 - A Windows OCR language pack (**Settings ▸ Time & language ▸ Language & region**). Most English installs
   already include one.
 
@@ -63,7 +65,7 @@ capture.
 dotnet test
 ```
 
-The suite has 156 xUnit tests covering transcript aggregation/formatting/cleanup, settings, view-models, OCR
+The suite has Unit Tests covering transcript aggregation/formatting/cleanup, settings, view-models, OCR
 pixel conversion, frame-buffer pooling, and participant collection.
 
 ## Project layout
@@ -78,7 +80,7 @@ pixel conversion, frame-buffer pooling, and participant collection.
 ## Privacy
 
 Caption Scribe reads pixels from a screen region you choose and runs OCR locally. Transcripts are written
-only to folders you pick (or the per-user autosave folder). Nothing is sent off the machine.
+only to folders you pick (or the per-user autosave folder). Nothing is sent off the machine to the cloud.
 
 ## License
 
