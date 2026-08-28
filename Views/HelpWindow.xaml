@@ -1,0 +1,75 @@
+<Window x:Class="CaptionScribe.Views.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Caption Scribe — Help"
+        Height="600" Width="620" MinHeight="360" MinWidth="460"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Topmost="True">
+    <DockPanel Margin="16">
+        <Button DockPanel.Dock="Bottom" Style="{StaticResource DialogButton}" Content="Close" Width="90" HorizontalAlignment="Right"
+                Margin="0,12,0,0" IsCancel="True" IsDefault="True" ToolTip="Close" />
+        <FlowDocumentScrollViewer VerticalScrollBarVisibility="Auto">
+            <FlowDocument FontFamily="Segoe UI" FontSize="13" PagePadding="0,0,10,0" ColumnWidth="2000" TextAlignment="Left">
+                <Paragraph FontSize="20" FontWeight="SemiBold" Margin="0,0,0,2">Caption Scribe</Paragraph>
+                <Paragraph Foreground="#666666" Margin="0,0,0,6">Captures live captions and chats from meetings and conversations by using screen OCR and stitching them into a running transcript. No cloud dependencies.</Paragraph>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Getting started</Paragraph>
+                <List MarkerStyle="Decimal" Padding="22,0,0,0" Margin="0,0,0,4">
+                    <ListItem><Paragraph>In Teams, turn on <Bold>live captions</Bold>.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Pick a region: the <Bold>Select</Bold> toolbar button, <Bold>Settings ▸ Select Capture Region</Bold>, or click the region readout at the top — then drag a box over the caption area (any monitor works).</Paragraph></ListItem>
+                    <ListItem><Paragraph>Start capturing: the <Bold>Play</Bold> button, <Bold>Space</Bold>, the centre prompt, or <Bold>File ▸ Active</Bold>. The transcript fills in live.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Use <Bold>Save</Bold> to write a .txt or .md file. You'll be offered a cleanup pass and asked for a meeting title.</Paragraph></ListItem>
+                </List>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Toolbar (top-right)</Paragraph>
+                <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,2">
+                    <ListItem><Paragraph><Bold>Highlight</Bold> (corner frame) — briefly outline the capture region on screen.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Select</Bold> (frame with S) — drag a new capture region.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>New</Bold> (plus) — clear and begin a fresh transcript.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Save</Bold> (disk) — save the transcript to a file.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Clear</Bold> (trash) — empty the current transcript.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Copy</Bold> (pages) — copy the transcript to the clipboard.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Play / Pause</Bold> (triangle / bars) — start or pause capturing.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Stop</Bold> (square) — stop capturing, then save.</Paragraph></ListItem>
+                </List>
+                <Paragraph Foreground="#666666" Margin="0,0,0,4">Save, Clear and Copy stay greyed until there's something to act on; Stop is available only while capturing.</Paragraph>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Keyboard and mouse</Paragraph>
+                <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
+                    <ListItem><Paragraph><Bold>Space</Bold> — start or stop capturing while the main window is focused.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Click the <Bold>region readout</Bold> at the top to pick a new region.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Scroll up in the transcript to pause <Bold>auto-scroll</Bold>; scroll back to the bottom to resume.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Hold <Bold>Alt</Bold> to reveal menu access keys.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Double-click the tray icon</Bold> to open; right-click it for Open, Active, Settings and Exit.</Paragraph></ListItem>
+                </List>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Menus</Paragraph>
+                <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
+                    <ListItem><Paragraph><Bold>File</Bold> — New Scribe, Save Scribe, Active (start/stop), Exit.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output (off shows the last 200 lines; the full text is still saved), Timestamps.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, and the Settings dialog.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>About</Bold> — Help and About.</Paragraph></ListItem>
+                </List>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Settings that matter</Paragraph>
+                <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
+                    <ListItem><Paragraph><Bold>Capture interval</Bold> and <Bold>Upscale factor</Bold> — trade speed for accuracy on small text.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Enhance image for OCR</Bold> — grayscale and contrast before recognition; best left on.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Show timestamps</Bold> / <Bold>per-turn</Bold> — prefix lines with the time; per-turn stamps only at each speaker change.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Autosave</Bold> and <Bold>Default save folder</Bold> — where in-progress and final transcripts are written.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Only capture while Teams is in front</Bold> — pauses OCR when Teams isn't over the region, so trailing text isn't recorded after a meeting ends.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Bring Teams to front while capturing</Bold> — experimental; briefly focuses Teams for each grab.</Paragraph></ListItem>
+                </List>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Tips for better accuracy</Paragraph>
+                <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
+                    <ListItem><Paragraph>Increase the caption text size in Teams.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Draw the region snugly around just the caption lines.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Lower the capture interval or raise the upscale factor if lines are missed.</Paragraph></ListItem>
+                </List>
+
+                <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Files and privacy</Paragraph>
+                <Paragraph Margin="0,0,0,4">Work is autosaved to a rolling file at your chosen interval, so a crash won't lose much. Saved transcripts are named <Bold>yyyy-MM-dd-Meeting-HH-mm-Title.txt</Bold> (the time is when capture started). Capture, OCR and storage all happen on this PC.</Paragraph>
+            </FlowDocument>
+        </FlowDocumentScrollViewer>
+    </DockPanel>
+</Window>

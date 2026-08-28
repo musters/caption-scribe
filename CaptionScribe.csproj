@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
+    <RootNamespace>CaptionScribe</RootNamespace>
+    <AssemblyName>CaptionScribe</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- InvariantGlobalization is incompatible with WPF: XmlLanguage.GetSpecificCulture() throws for the
+         default en-US xml:lang during data binding ("Cannot find non-neutral culture related to 'en-us'"). -->
+    <!-- WPF honors the PerMonitorV2 setting in app.manifest; silence the WinForms-only analyzer. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The test project lives under the app folder; keep its sources out of the app build. -->
+    <Compile Remove="CaptionScribe.Tests\**" />
+    <InternalsVisibleTo Include="CaptionScribe.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,129 @@
+<Window x:Class="CaptionScribe.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Caption Scribe — Settings"
+        Width="640" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True">
+    <Window.Resources>
+        <ControlTemplate x:Key="FieldErrorTemplate">
+            <StackPanel>
+                <Grid>
+                    <AdornedElementPlaceholder x:Name="placeholder" />
+                    <Border BorderBrush="#C0392B" BorderThickness="1" IsHitTestVisible="False" />
+                </Grid>
+                <TextBlock Foreground="#C0392B" FontSize="11" Margin="1,1,0,0"
+                           Text="{Binding ElementName=placeholder, Path=AdornedElement.(Validation.Errors)[0].ErrorContent}" />
+            </StackPanel>
+        </ControlTemplate>
+        <Style x:Key="NumberBox" TargetType="TextBox">
+            <Setter Property="Margin" Value="0,2,0,20" />
+            <Setter Property="Validation.ErrorTemplate" Value="{StaticResource FieldErrorTemplate}" />
+            <Style.Triggers>
+                <Trigger Property="Validation.HasError" Value="True">
+                    <Setter Property="ToolTip"
+                            Value="{Binding (Validation.Errors)[0].ErrorContent, RelativeSource={RelativeSource Self}}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="16">
+        <TextBlock Margin="0,0,0,12" TextWrapping="Wrap" Foreground="#777" FontSize="11"
+                   Text="Defaults come from appsettings.json; your changes are saved per-user. Interval and threshold apply the next time capture starts." />
+
+        <TextBlock Text="Default save folder (blank = ask each time)" />
+        <Grid Margin="0,2,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox VerticalAlignment="Center" Text="{Binding DefaultSaveDir, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Column="1" Style="{StaticResource DialogButton}" Content="Browse…" Margin="6,0,0,0" Padding="8,1"
+                    ToolTip="Choose the default save folder" Command="{Binding BrowseDefaultSaveCommand}" />
+        </Grid>
+
+        <TextBlock Text="Autosave folder (blank = default)" />
+        <Grid Margin="0,2,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox VerticalAlignment="Center" Text="{Binding AutoSaveDir, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Column="1" Style="{StaticResource DialogButton}" Content="Browse…" Margin="6,0,0,0" Padding="8,1"
+                    ToolTip="Choose the autosave folder" Command="{Binding BrowseAutoSaveCommand}" />
+        </Grid>
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center" Foreground="#777" FontSize="11" TextTrimming="CharacterEllipsis"
+                       Text="{Binding AutoSaveLocation}" ToolTip="{Binding AutoSaveLocation}" />
+            <Button Grid.Column="1" Style="{StaticResource DialogButton}" Content="Clear…" Margin="6,0,0,0" Padding="8,1"
+                    ToolTip="Delete autosaved transcripts in this folder" Command="{Binding ClearAutoSaveCommand}" />
+        </Grid>
+
+        <TextBlock Text="Prompt to clear the autosave folder when files exceed" />
+        <TextBox Style="{StaticResource NumberBox}" Text="{Binding AutoSavePromptThreshold, UpdateSourceTrigger=PropertyChanged}" />
+
+        <CheckBox Margin="0,0,0,14" IsChecked="{Binding AutoDeleteOldAutoSaves}"
+                  Content="Automatically delete autosave entries older than 1 month" />
+
+        <TextBlock Text="Autosave interval (minutes)" />
+        <TextBox Style="{StaticResource NumberBox}" Text="{Binding AutoSaveInterval, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Text="Capture interval (ms)" />
+        <TextBox Style="{StaticResource NumberBox}" Text="{Binding CaptureInterval, UpdateSourceTrigger=PropertyChanged}" />
+
+        <CheckBox Margin="0,4,0,0" IsChecked="{Binding FocusSwitch}"
+                  Content="Bring Teams to front while capturing (experimental)" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding RequireTeams}"
+                  Content="Only capture while Teams is in front of the region" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding EnhanceForOcr}"
+                  Content="Enhance image for OCR (grayscale + contrast)" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding ShowAllOutput}"
+                  Content="Show all output (off = display only the last 200 lines)" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding ShowTimestamps}"
+                  Content="Show timestamps (HH:mm:ss)" />
+
+        <CheckBox Margin="20,4,0,0" IsChecked="{Binding TimestampsPerTurn}"
+                  Content="Only at the start of each speaker's turn (less noisy)" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding EnableDebugLogging}"
+                  Content="Write debug logging (verbose; for troubleshooting)" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding EnableParticipantCapture}"
+                  Content="Capture a participants image on save (experimental)" />
+
+        <TextBlock Text="Upscale factor (1–4)" Margin="0,12,0,0" />
+        <TextBox Style="{StaticResource NumberBox}" Text="{Binding Upscale, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Text="Similarity threshold (0–1)" />
+        <TextBox Style="{StaticResource NumberBox}" Text="{Binding Threshold, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Text="Microsoft Teams window title hint" />
+        <Grid Margin="0,2,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox VerticalAlignment="Center" Text="{Binding Hint, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Column="1" Style="{StaticResource DialogButton}" Content="Detect" Margin="6,0,0,0" Padding="8,1"
+                    ToolTip="Fill this from the title of the current Teams window" Command="{Binding DetectTeamsTitleCommand}" />
+        </Grid>
+
+        <TextBlock Text="Focus settle delay (ms)" />
+        <TextBox Style="{StaticResource NumberBox}" Text="{Binding Settle, UpdateSourceTrigger=PropertyChanged}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Style="{StaticResource DialogButton}" Content="Save" Width="90" Margin="0,0,8,0" IsDefault="True"
+                    ToolTip="Apply and save your settings" Command="{Binding SaveCommand}" />
+            <Button Style="{StaticResource DialogButton}" Content="Cancel" Width="90" IsCancel="True"
+                    ToolTip="Discard changes" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -1,0 +1,24 @@
+## Build output
+bin/
+obj/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## VS Code (user-specific; un-ignore individual files if you want to share them)
+.vscode/
+
+## Test / coverage results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+coverage*.json
+
+## OS files
+.DS_Store
+Thumbs.db
