@@ -82,4 +82,4 @@ only to folders you pick (or the per-user autosave folder). Nothing is sent off 
 
 ## License
 
-[MIT](LICENSE) © 2026 Kevin Musters
+[MIT](LICENSE) © 2026 Musters Consulting
