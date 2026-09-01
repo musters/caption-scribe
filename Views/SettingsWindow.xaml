@@ -31,9 +31,6 @@
         <TextBlock Margin="0,0,0,12" TextWrapping="Wrap" Foreground="#777" FontSize="11"
                    Text="Defaults come from appsettings.json; your changes are saved per-user. Interval and threshold apply the next time capture starts." />
 
-        <CheckBox Margin="0,0,0,14" IsChecked="{Binding RunOnStartup}"
-                  Content="Run Caption Scribe on startup" />
-
         <TextBlock Text="Default save folder (blank = ask each time)" />
         <Grid Margin="0,2,0,10">
             <Grid.ColumnDefinitions>
@@ -78,7 +75,10 @@
         <TextBlock Text="Capture interval (ms)" />
         <TextBox Style="{StaticResource NumberBox}" Text="{Binding CaptureInterval, UpdateSourceTrigger=PropertyChanged}" />
 
-        <CheckBox Margin="0,4,0,0" IsChecked="{Binding FocusSwitch}"
+        <CheckBox Margin="0,4,0,0" IsChecked="{Binding RunOnStartup}"
+                  Content="Run Caption Scribe on startup" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding FocusSwitch}"
                   Content="Bring Teams to front while capturing (experimental)" />
 
         <CheckBox Margin="0,8,0,0" IsChecked="{Binding RequireTeams}"
