@@ -18,11 +18,12 @@ namespace CaptionScribe.Core.Shell
 
         private readonly WinForms.NotifyIcon _notifyIcon;
         private readonly WinForms.ToolStripMenuItem _activeItem;
+        private readonly WinForms.ToolStripMenuItem _newScribeItem;
         private readonly Drawing.Icon _activeIcon;
         private readonly Drawing.Icon _inactiveIcon;
 
-        public TrayIcon(Action onOpen, Action onToggleActive, Action onShowRegion, Action onSetRegion,
-            Action onSettings, Action onExit)
+        public TrayIcon(Action onOpen, Action onNewScribe, Action onToggleActive, Action onShowRegion,
+            Action onSetRegion, Action onSettings, Action onExit)
         {
             _activeIcon = RenderIcon(active: true);
             _inactiveIcon = RenderIcon(active: false);
@@ -33,6 +34,7 @@ namespace CaptionScribe.Core.Shell
                 // Bold marks Open as the default action (also invoked by double-click).
                 Font = new Drawing.Font(menu.Font, Drawing.FontStyle.Bold),
             };
+            _newScribeItem = new WinForms.ToolStripMenuItem("New Scribe", null, (_, _) => onNewScribe());
             _activeItem = new WinForms.ToolStripMenuItem("Active", null, (_, _) => onToggleActive())
             {
                 CheckOnClick = false,
@@ -44,6 +46,7 @@ namespace CaptionScribe.Core.Shell
 
             menu.Items.Add(openItem);
             menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add(_newScribeItem);
             menu.Items.Add(_activeItem);
             menu.Items.Add(showRegionItem);
             menu.Items.Add(setRegionItem);
@@ -64,6 +67,7 @@ namespace CaptionScribe.Core.Shell
         public void SetActive(bool active)
         {
             _activeItem.Checked = active;
+            _newScribeItem.Enabled = !active;
             _notifyIcon.Icon = active ? _activeIcon : _inactiveIcon;
             _notifyIcon.Text = active ? "Caption Scribe - capturing" : "Caption Scribe - idle";
         }
