@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using CaptionScribe.Models;
+using CaptionScribe.Core.Logging;
 using CaptionScribe.Core.Mvvm;
 using CaptionScribe.Services;
 
@@ -18,7 +19,10 @@ namespace CaptionScribe.ViewModels
         private readonly AppSettings _settings;
         private readonly IDialogService _dialogs;
         private readonly Func<string?> _detectTeamsTitle;
+        private readonly IStartupLaunchService _startup;
+        private readonly ILog _log;
         private readonly Dictionary<string, string> _errors = new();
+        private readonly bool _startupEnabledAtOpen;
 
         private string _captureInterval;
         private string _autoSaveInterval;
@@ -38,15 +42,19 @@ namespace CaptionScribe.ViewModels
         private string _autoSavePromptThreshold;
         private bool _autoDeleteOldAutoSaves;
         private bool _enableParticipantCapture;
+        private bool _runOnStartup;
 
         /// <summary>Raised with the dialog result when the user saves; the view closes accordingly.</summary>
         public event EventHandler<bool>? CloseRequested;
 
-        public SettingsViewModel(AppSettings settings, IDialogService dialogs, Func<string?> detectTeamsTitle)
+        public SettingsViewModel(AppSettings settings, IDialogService dialogs, Func<string?> detectTeamsTitle,
+            IStartupLaunchService startup, ILog log)
         {
             _settings = settings;
             _dialogs = dialogs;
             _detectTeamsTitle = detectTeamsTitle;
+            _startup = startup;
+            _log = log;
 
             _captureInterval = Str(settings.CaptureIntervalMs);
             _autoSaveInterval = Str(settings.AutoSaveIntervalMinutes);
@@ -66,21 +74,23 @@ namespace CaptionScribe.ViewModels
             _autoSavePromptThreshold = Str(settings.AutoSavePromptThreshold);
             _autoDeleteOldAutoSaves = settings.AutoDeleteOldAutoSaves;
             _enableParticipantCapture = settings.EnableParticipantCapture;
+            _startupEnabledAtOpen = startup.IsEnabled();
+            _runOnStartup = _startupEnabledAtOpen;
 
-            SaveCommand = new RelayCommand(Save, () => IsDirty && !HasErrors);
             BrowseAutoSaveCommand = new RelayCommand(BrowseAutoSave);
             BrowseDefaultSaveCommand = new RelayCommand(BrowseDefaultSave);
             ClearAutoSaveCommand = new RelayCommand(ClearAutoSave);
             DetectTeamsTitleCommand = new RelayCommand(DetectTeamsTitle);
+            SaveCommand = new RelayCommand(Save, () => IsDirty && !HasErrors);
 
             ValidateAll();
         }
 
-        public ICommand SaveCommand { get; }
         public ICommand BrowseAutoSaveCommand { get; }
         public ICommand BrowseDefaultSaveCommand { get; }
         public ICommand ClearAutoSaveCommand { get; }
         public ICommand DetectTeamsTitleCommand { get; }
+        public ICommand SaveCommand { get; }
 
         public string CaptureInterval
         {
@@ -132,6 +142,7 @@ namespace CaptionScribe.ViewModels
         }
         public bool AutoDeleteOldAutoSaves { get => _autoDeleteOldAutoSaves; set => Set(ref _autoDeleteOldAutoSaves, value); }
         public bool EnableParticipantCapture { get => _enableParticipantCapture; set => Set(ref _enableParticipantCapture, value); }
+        public bool RunOnStartup { get => _runOnStartup; set => Set(ref _runOnStartup, value); }
 
         // True when any field differs from the saved settings (Save stays disabled until then).
         private bool IsDirty =>
@@ -152,7 +163,14 @@ namespace CaptionScribe.ViewModels
             || _enableDebugLogging != _settings.EnableDebugLogging
             || _autoSavePromptThreshold != Str(_settings.AutoSavePromptThreshold)
             || _autoDeleteOldAutoSaves != _settings.AutoDeleteOldAutoSaves
-            || _enableParticipantCapture != _settings.EnableParticipantCapture;
+            || _enableParticipantCapture != _settings.EnableParticipantCapture
+            || _runOnStartup != _startupEnabledAtOpen;
+
+        // ---- INotifyDataErrorInfo ----
+        public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
+        public bool HasErrors => _errors.Count > 0;
+
+        private static string? Blank(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
         private void BrowseAutoSave()
         {
@@ -193,8 +211,34 @@ namespace CaptionScribe.ViewModels
             Hint = title;
         }
 
+        private static void EnsureDir(string dir)
+        {
+            if (string.IsNullOrWhiteSpace(dir)) return;
+            try { Directory.CreateDirectory(dir); } catch { /* the app falls back if the folder is missing */ }
+        }
+
+        public IEnumerable GetErrors(string? propertyName)
+            => propertyName is not null && _errors.TryGetValue(propertyName, out var msg)
+                ? new[] { msg }
+                : Array.Empty<string>();
+
+        private static int Int(string s) => int.Parse(s, NumberStyles.Integer, CultureInfo.InvariantCulture);
+
         private void Save()
         {
+            try
+            {
+                if (RunOnStartup != _startupEnabledAtOpen)
+                    _startup.SetEnabled(RunOnStartup);
+            }
+            catch (Exception ex)
+            {
+                _log.Error("Could not update the Windows startup setting.", ex);
+                _dialogs.Info("Run on startup",
+                    "Could not update the Windows startup setting. " + ex.Message);
+                return;
+            }
+
             _settings.CaptureIntervalMs = Int(CaptureInterval);
             _settings.AutoSaveIntervalMinutes = Int(AutoSaveInterval);
             _settings.UpscaleFactor = Int(Upscale);
@@ -220,35 +264,13 @@ namespace CaptionScribe.ViewModels
             CloseRequested?.Invoke(this, true);
         }
 
-        // ---- INotifyDataErrorInfo ----
-        public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
-        public bool HasErrors => _errors.Count > 0;
-
-        public IEnumerable GetErrors(string? propertyName)
-            => propertyName is not null && _errors.TryGetValue(propertyName, out var msg)
-                ? new[] { msg }
-                : Array.Empty<string>();
-
-        private void ValidateAll()
+        // Set + re-evaluate command availability (Save also depends on IsDirty).
+        private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
         {
-            ValidateInt(CaptureInterval, 200, 60000, nameof(CaptureInterval));
-            ValidateInt(AutoSaveInterval, 1, 60, nameof(AutoSaveInterval));
-            ValidateInt(Upscale, 1, 4, nameof(Upscale));
-            ValidateDouble(Threshold, 0.0, 1.0, nameof(Threshold));
-            ValidateInt(Settle, 0, 5000, nameof(Settle));
-            ValidateInt(AutoSavePromptThreshold, 1, 1000000, nameof(AutoSavePromptThreshold));
-        }
-
-        private void ValidateInt(string text, int min, int max, string propertyName)
-        {
-            bool ok = int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) && v >= min && v <= max;
-            SetError(propertyName, ok ? null : $"Enter a whole number between {min} and {max}.");
-        }
-
-        private void ValidateDouble(string text, double min, double max, string propertyName)
-        {
-            bool ok = double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) && v >= min && v <= max;
-            SetError(propertyName, ok ? null : $"Enter a number between {min} and {max}.");
+            if (!SetProperty(ref field, value, name))
+                return false;
+            CommandManager.InvalidateRequerySuggested();
+            return true;
         }
 
         private void SetError(string propertyName, string? message)
@@ -267,23 +289,28 @@ namespace CaptionScribe.ViewModels
             CommandManager.InvalidateRequerySuggested();
         }
 
-        // Set + re-evaluate command availability (Save also depends on IsDirty).
-        private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+        private static string Str(int v) => v.ToString(CultureInfo.InvariantCulture);
+
+        private void ValidateAll()
         {
-            if (!SetProperty(ref field, value, name))
-                return false;
-            CommandManager.InvalidateRequerySuggested();
-            return true;
+            ValidateInt(CaptureInterval, 200, 60000, nameof(CaptureInterval));
+            ValidateInt(AutoSaveInterval, 1, 60, nameof(AutoSaveInterval));
+            ValidateInt(Upscale, 1, 4, nameof(Upscale));
+            ValidateDouble(Threshold, 0.0, 1.0, nameof(Threshold));
+            ValidateInt(Settle, 0, 5000, nameof(Settle));
+            ValidateInt(AutoSavePromptThreshold, 1, 1000000, nameof(AutoSavePromptThreshold));
         }
 
-        private static string? Blank(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
-        private static string Str(int v) => v.ToString(CultureInfo.InvariantCulture);
-        private static int Int(string s) => int.Parse(s, NumberStyles.Integer, CultureInfo.InvariantCulture);
-
-        private static void EnsureDir(string dir)
+        private void ValidateDouble(string text, double min, double max, string propertyName)
         {
-            if (string.IsNullOrWhiteSpace(dir)) return;
-            try { Directory.CreateDirectory(dir); } catch { /* the app falls back if the folder is missing */ }
+            bool ok = double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) && v >= min && v <= max;
+            SetError(propertyName, ok ? null : $"Enter a number between {min} and {max}.");
+        }
+
+        private void ValidateInt(string text, int min, int max, string propertyName)
+        {
+            bool ok = int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) && v >= min && v <= max;
+            SetError(propertyName, ok ? null : $"Enter a whole number between {min} and {max}.");
         }
     }
 }

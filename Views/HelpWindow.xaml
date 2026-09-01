@@ -52,6 +52,7 @@
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Settings that matter</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
+                    <ListItem><Paragraph><Bold>Run Caption Scribe on startup</Bold> — launch in the tray when you sign in to Windows. A later double-click opens the existing window.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Capture interval</Bold> and <Bold>Upscale factor</Bold> — trade speed for accuracy on small text.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Enhance image for OCR</Bold> — grayscale and contrast before recognition; best left on.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Show timestamps</Bold> / <Bold>per-turn</Bold> — prefix lines with the time; per-turn stamps only at each speaker change.</Paragraph></ListItem>

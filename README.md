@@ -55,9 +55,9 @@ the caption lines, and raise the **Upscale factor** (Settings) if lines are bein
 ## Settings
 
 Defaults live in [`appsettings.json`](appsettings.json); your changes are saved per-user under
-`%APPDATA%\CaptionScribe\settings.json`. Notable settings include the capture interval, upscale factor, OCR
-enhancement, timestamps, autosave interval/folder, default save folder, and the experimental participants
-capture.
+`%APPDATA%\CaptionScribe\settings.json`. Notable settings include run on startup (tray at Windows sign-in),
+the capture interval, upscale factor, OCR enhancement, timestamps, autosave interval/folder, default save
+folder, and the experimental participants capture.
 
 ## Tests
 

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Windows;
 using CaptionScribe.Core.Interop;
+using CaptionScribe.Core.Logging;
 using CaptionScribe.Models;
 using CaptionScribe.Services;
 using CaptionScribe.ViewModels;
@@ -12,16 +13,19 @@ namespace CaptionScribe.Views
     /// <summary>WPF/WinForms implementation of <see cref="IDialogService"/>.</summary>
     public sealed class WpfDialogService : IDialogService
     {
+        private readonly ILog _log;
+        private readonly IStartupLaunchService _startup;
+
+        public WpfDialogService(IStartupLaunchService startup, ILog log)
+        {
+            _log = log;
+            _startup = startup;
+        }
+
         /// <summary>Owner for modal dialogs; used only while it is visible (the app can be tray-only).</summary>
         public Window? Owner { get; set; }
 
         private Window? ActiveOwner => Owner is { IsVisible: true } ? Owner : null;
-
-        public bool ConfirmOkCancel(string title, string message)
-            => ShowButtons(title, message, ("OK", true, false), ("Cancel", false, true)) == 0;
-
-        public bool ConfirmYesNo(string title, string message)
-            => ShowButtons(title, message, ("Yes", true, false), ("No", false, true)) == 0;
 
         public SaveCleanup? AskSaveCleanup()
         {
@@ -39,11 +43,36 @@ namespace CaptionScribe.Views
             };
         }
 
-        public string? PromptMeetingTitle()
+        public bool ConfirmOkCancel(string title, string message)
+            => ShowButtons(title, message, ("OK", true, false), ("Cancel", false, true)) == 0;
+
+        public bool ConfirmYesNo(string title, string message)
+            => ShowButtons(title, message, ("Yes", true, false), ("No", false, true)) == 0;
+
+        public void CopyToClipboard(string text)
         {
-            var dialog = new InputDialog("Meeting title (used in the file name):", "Save Scribe");
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
-            return dialog.ShowDialog() == true ? dialog.ResponseText : null;
+            try { Clipboard.SetText(text); } catch { /* clipboard busy */ }
+        }
+
+        // Best-matching Teams window's title right now (for the Settings "Detect" button), or null.
+        private static string? DetectTeamsWindowTitle()
+        {
+            IntPtr hWnd = new WindowService().FindTeamsWindow(titleHint: null);
+            if (hWnd == IntPtr.Zero)
+                return null;
+            string title = Win32.GetWindowTitle(hWnd);
+            return string.IsNullOrWhiteSpace(title) ? null : title;
+        }
+
+        public void Info(string title, string message)
+            => ShowButtons(title, message, ("OK", true, true));
+
+        public string? PickFolder(string? initialDirectory)
+        {
+            using var dialog = new WinForms.FolderBrowserDialog();
+            if (!string.IsNullOrWhiteSpace(initialDirectory))
+                dialog.SelectedPath = initialDirectory;
+            return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.SelectedPath : null;
         }
 
         public string? PickSaveFile(string suggestedFileName, string? initialDirectory)
@@ -58,46 +87,11 @@ namespace CaptionScribe.Views
             return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.FileName : null;
         }
 
-        public string? PickFolder(string? initialDirectory)
+        public string? PromptMeetingTitle()
         {
-            using var dialog = new WinForms.FolderBrowserDialog();
-            if (!string.IsNullOrWhiteSpace(initialDirectory))
-                dialog.SelectedPath = initialDirectory;
-            return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.SelectedPath : null;
-        }
-
-        public void Info(string title, string message)
-            => ShowButtons(title, message, ("OK", true, true));
-
-        public void CopyToClipboard(string text)
-        {
-            try { Clipboard.SetText(text); } catch { /* clipboard busy */ }
-        }
-
-        public bool ShowSettings(AppSettings settings)
-        {
-            var vm = new SettingsViewModel(settings, this, DetectTeamsWindowTitle);
-            var dialog = new SettingsWindow { DataContext = vm };
-            vm.CloseRequested += (_, result) => dialog.DialogResult = result;
+            var dialog = new InputDialog("Meeting title (used in the file name):", "Save Scribe");
             if (ActiveOwner is { } owner) dialog.Owner = owner;
-            return dialog.ShowDialog() == true;
-        }
-
-        // Best-matching Teams window's title right now (for the Settings "Detect" button), or null.
-        private static string? DetectTeamsWindowTitle()
-        {
-            IntPtr hWnd = new WindowService().FindTeamsWindow(titleHint: null);
-            if (hWnd == IntPtr.Zero)
-                return null;
-            string title = Win32.GetWindowTitle(hWnd);
-            return string.IsNullOrWhiteSpace(title) ? null : title;
-        }
-
-        public void ShowHelp()
-        {
-            var dialog = new HelpWindow();
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
-            dialog.ShowDialog();
+            return dialog.ShowDialog() == true ? dialog.ResponseText : null;
         }
 
         public void ShowAbout(string autoSavePath)
@@ -114,6 +108,22 @@ namespace CaptionScribe.Views
             if (ActiveOwner is { } owner) dialog.Owner = owner;
             dialog.ShowDialog();
             return dialog.Result;
+        }
+
+        public void ShowHelp()
+        {
+            var dialog = new HelpWindow();
+            if (ActiveOwner is { } owner) dialog.Owner = owner;
+            dialog.ShowDialog();
+        }
+
+        public bool ShowSettings(AppSettings settings)
+        {
+            var vm = new SettingsViewModel(settings, this, DetectTeamsWindowTitle, _startup, _log);
+            var dialog = new SettingsWindow { DataContext = vm };
+            vm.CloseRequested += (_, result) => dialog.DialogResult = result;
+            if (ActiveOwner is { } owner) dialog.Owner = owner;
+            return dialog.ShowDialog() == true;
         }
     }
 }

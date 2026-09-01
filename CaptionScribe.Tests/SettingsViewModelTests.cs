@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using System.Linq;
+using CaptionScribe.Core.Logging;
 using CaptionScribe.Models;
+using CaptionScribe.Services;
 using CaptionScribe.ViewModels;
 using Xunit;
 
@@ -9,47 +11,12 @@ namespace CaptionScribe.Tests
 {
     public class SettingsViewModelTests
     {
-        private static SettingsViewModel New(AppSettings? settings = null, Func<string?>? detectTeamsTitle = null)
-            => new(settings ?? new AppSettings(), new FakeDialogService(), detectTeamsTitle ?? (() => null));
-
-        [Fact]
-        public void FreshFromValidSettings_SaveDisabled_NoErrors()
-        {
-            var vm = New();
-            Assert.False(vm.HasErrors);
-            Assert.False(vm.SaveCommand.CanExecute(null));
-        }
-
         [Fact]
         public void ChangingAField_EnablesSave()
         {
             var vm = New();
             vm.CaptureInterval = "2000";
             Assert.True(vm.SaveCommand.CanExecute(null));
-        }
-
-        [Fact]
-        public void DetectTeamsTitle_WhenFound_SetsHint_AndEnablesSave()
-        {
-            var vm = New(detectTeamsTitle: () => "Sprint Demo | Microsoft Teams");
-
-            vm.DetectTeamsTitleCommand.Execute(null);
-
-            Assert.Equal("Sprint Demo | Microsoft Teams", vm.Hint);
-            Assert.True(vm.SaveCommand.CanExecute(null));
-        }
-
-        [Fact]
-        public void DetectTeamsTitle_WhenNoneFound_KeepsHint_AndInforms()
-        {
-            var settings = new AppSettings { TeamsWindowTitleHint = "keep-me" };
-            var dialogs = new FakeDialogService();
-            var vm = new SettingsViewModel(settings, dialogs, () => null);
-
-            vm.DetectTeamsTitleCommand.Execute(null);
-
-            Assert.Equal("keep-me", vm.Hint);
-            Assert.Equal("Detect Teams window", dialogs.LastInfoTitle);
         }
 
         [Fact]
@@ -68,20 +35,82 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void ClearAutoSave_WhenCancelled_KeepsFiles()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeVmClear", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "scribe-1.txt"), "x");
+            try
+            {
+                var dialogs = new FakeDialogService { ConfirmYesNoResult = false };
+                var vm = new SettingsViewModel(new AppSettings(), dialogs, () => null, new FakeStartupLaunchService(),
+                    NullLog.Instance) { AutoSaveDir = dir };
+
+                vm.ClearAutoSaveCommand.Execute(null);
+
+                Assert.Single(Directory.GetFiles(dir, "scribe-*.txt"));
+            }
+            finally { Directory.Delete(dir, recursive: true); }
+        }
+
+        [Fact]
+        public void ClearAutoSave_WhenConfirmed_DeletesScribeFiles()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeVmClear", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "scribe-1.txt"), "x");
+            try
+            {
+                var dialogs = new FakeDialogService { ConfirmYesNoResult = true };
+                var vm = new SettingsViewModel(new AppSettings(), dialogs, () => null, new FakeStartupLaunchService(),
+                    NullLog.Instance) { AutoSaveDir = dir };
+
+                vm.ClearAutoSaveCommand.Execute(null);
+
+                Assert.Empty(Directory.GetFiles(dir, "scribe-*.txt"));
+                Assert.NotNull(dialogs.LastInfoMessage);
+            }
+            finally { Directory.Delete(dir, recursive: true); }
+        }
+
+        [Fact]
+        public void DetectTeamsTitle_WhenFound_SetsHint_AndEnablesSave()
+        {
+            var vm = New(detectTeamsTitle: () => "Sprint Demo | Microsoft Teams");
+
+            vm.DetectTeamsTitleCommand.Execute(null);
+
+            Assert.Equal("Sprint Demo | Microsoft Teams", vm.Hint);
+            Assert.True(vm.SaveCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public void DetectTeamsTitle_WhenNoneFound_KeepsHint_AndInforms()
+        {
+            var settings = new AppSettings { TeamsWindowTitleHint = "keep-me" };
+            var dialogs = new FakeDialogService();
+            var vm = new SettingsViewModel(settings, dialogs, () => null, new FakeStartupLaunchService(), NullLog.Instance);
+
+            vm.DetectTeamsTitleCommand.Execute(null);
+
+            Assert.Equal("keep-me", vm.Hint);
+            Assert.Equal("Detect Teams window", dialogs.LastInfoTitle);
+        }
+
+        [Fact]
+        public void FreshFromValidSettings_SaveDisabled_NoErrors()
+        {
+            var vm = New();
+            Assert.False(vm.HasErrors);
+            Assert.False(vm.SaveCommand.CanExecute(null));
+        }
+
+        [Fact]
         public void InvalidAutoSavePromptThreshold_DisablesSave()
         {
             var vm = New();
             vm.AutoSavePromptThreshold = "0";
             Assert.True(vm.HasErrors);
-            Assert.False(vm.SaveCommand.CanExecute(null));
-        }
-
-        [Fact]
-        public void RevertingAField_DisablesSaveAgain()
-        {
-            var vm = New(new AppSettings { CaptureIntervalMs = 1500 });
-            vm.CaptureInterval = "2000";
-            vm.CaptureInterval = "1500";
             Assert.False(vm.SaveCommand.CanExecute(null));
         }
 
@@ -95,6 +124,20 @@ namespace CaptionScribe.Tests
             Assert.False(vm.SaveCommand.CanExecute(null));
             var message = vm.GetErrors(nameof(SettingsViewModel.CaptureInterval)).Cast<string>().Single();
             Assert.Contains("between 200 and 60000", message);
+        }
+
+        private static SettingsViewModel New(AppSettings? settings = null, Func<string?>? detectTeamsTitle = null,
+            IStartupLaunchService? startup = null, ILog? log = null)
+            => new(settings ?? new AppSettings(), new FakeDialogService(), detectTeamsTitle ?? (() => null),
+                startup ?? new FakeStartupLaunchService(), log ?? NullLog.Instance);
+
+        [Fact]
+        public void RevertingAField_DisablesSaveAgain()
+        {
+            var vm = New(new AppSettings { CaptureIntervalMs = 1500 });
+            vm.CaptureInterval = "2000";
+            vm.CaptureInterval = "1500";
+            Assert.False(vm.SaveCommand.CanExecute(null));
         }
 
         [Fact]
@@ -115,40 +158,37 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void ClearAutoSave_WhenConfirmed_DeletesScribeFiles()
+        public void Save_WhenStartupUpdateFails_DoesNotClose_AndInforms()
         {
-            var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeVmClear", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(dir);
-            File.WriteAllText(Path.Combine(dir, "scribe-1.txt"), "x");
-            try
-            {
-                var dialogs = new FakeDialogService { ConfirmYesNoResult = true };
-                var vm = new SettingsViewModel(new AppSettings(), dialogs, () => null) { AutoSaveDir = dir };
+            var startup = new FakeStartupLaunchService { ThrowOnSet = true };
+            var dialogs = new FakeDialogService();
+            var log = new RecordingLog();
+            var vm = new SettingsViewModel(new AppSettings(), dialogs, () => null, startup, log);
+            bool closed = false;
+            vm.CloseRequested += (_, _) => closed = true;
 
-                vm.ClearAutoSaveCommand.Execute(null);
+            vm.RunOnStartup = true;
+            vm.SaveCommand.Execute(null);
 
-                Assert.Empty(Directory.GetFiles(dir, "scribe-*.txt"));
-                Assert.NotNull(dialogs.LastInfoMessage);
-            }
-            finally { Directory.Delete(dir, recursive: true); }
+            Assert.False(closed);
+            Assert.Equal("Run on startup", dialogs.LastInfoTitle);
+            Assert.Contains(log.Errors, w => w.Contains("Windows startup setting"));
+            Assert.True(vm.SaveCommand.CanExecute(null));
         }
 
         [Fact]
-        public void ClearAutoSave_WhenCancelled_KeepsFiles()
+        public void TogglingRunOnStartup_EnablesSave_AndApplies()
         {
-            var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeVmClear", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(dir);
-            File.WriteAllText(Path.Combine(dir, "scribe-1.txt"), "x");
-            try
-            {
-                var dialogs = new FakeDialogService { ConfirmYesNoResult = false };
-                var vm = new SettingsViewModel(new AppSettings(), dialogs, () => null) { AutoSaveDir = dir };
+            var startup = new FakeStartupLaunchService { Enabled = false };
+            var vm = New(startup: startup);
 
-                vm.ClearAutoSaveCommand.Execute(null);
+            vm.RunOnStartup = true;
+            Assert.True(vm.SaveCommand.CanExecute(null));
 
-                Assert.Single(Directory.GetFiles(dir, "scribe-*.txt"));
-            }
-            finally { Directory.Delete(dir, recursive: true); }
+            vm.SaveCommand.Execute(null);
+
+            Assert.True(startup.Enabled);
+            Assert.Equal(true, startup.LastSetValue);
         }
     }
 }
