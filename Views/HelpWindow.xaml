@@ -16,8 +16,8 @@
                 <List MarkerStyle="Decimal" Padding="22,0,0,0" Margin="0,0,0,4">
                     <ListItem><Paragraph>In Teams, turn on <Bold>live captions</Bold>.</Paragraph></ListItem>
                     <ListItem><Paragraph>Pick a region: the <Bold>Select</Bold> toolbar button, <Bold>Settings ▸ Select Capture Region</Bold>, or click the region readout at the top — then drag a box over the caption area (any monitor works).</Paragraph></ListItem>
-                    <ListItem><Paragraph>Start capturing: the <Bold>Play</Bold> button, <Bold>Space</Bold>, the centre prompt, or <Bold>File ▸ Active</Bold>. The transcript fills in live.</Paragraph></ListItem>
-                    <ListItem><Paragraph>Use <Bold>Save</Bold> to write a .txt or .md file. You'll be offered a cleanup pass and asked for a meeting title.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Start capturing: the <Bold>Play</Bold> button, <Bold>Space</Bold>, the centre prompt, <Bold>File ▸ Active</Bold>, or tray <Bold>Play</Bold>. The transcript fills in live.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Pause</Bold> stops capture without saving. <Bold>Stop</Bold> (toolbar or tray) stops, then saves. <Bold>Save</Bold> writes a .txt or .md file with an optional cleanup pass and meeting title.</Paragraph></ListItem>
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Toolbar (top-right)</Paragraph>
@@ -31,20 +31,21 @@
                     <ListItem><Paragraph><Bold>Play / Pause</Bold> (triangle / bars) — start or pause capturing.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Stop</Bold> (square) — stop capturing, then save.</Paragraph></ListItem>
                 </List>
-                <Paragraph Foreground="#666666" Margin="0,0,0,4">Save, Clear and Copy stay greyed until there's something to act on; Stop is available only while capturing.</Paragraph>
+                <Paragraph Foreground="#666666" Margin="0,0,0,4">Save, Clear and Copy stay greyed until there's something to act on. New Scribe is unavailable while capturing. Pause and Stop are available only while capturing.</Paragraph>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Keyboard and mouse</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
-                    <ListItem><Paragraph><Bold>Space</Bold> — start or stop capturing while the main window is focused.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Space</Bold> — play or pause capturing while the main window is focused.</Paragraph></ListItem>
                     <ListItem><Paragraph>Click the <Bold>region readout</Bold> at the top to pick a new region.</Paragraph></ListItem>
                     <ListItem><Paragraph>Scroll up in the transcript to pause <Bold>auto-scroll</Bold>; scroll back to the bottom to resume.</Paragraph></ListItem>
                     <ListItem><Paragraph>Hold <Bold>Alt</Bold> to reveal menu access keys.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Double-click the tray icon</Bold> to open; right-click it for Open, New Scribe, Play, Pause, Stop, Settings and Exit.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Close the window to hide in the <Bold>system tray</Bold> (use tray <Bold>Exit</Bold> or <Bold>File ▸ Exit</Bold> to quit).</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Double-click the tray icon</Bold> to open; right-click for Open, New Scribe, Play, Pause, Stop, Settings and Exit. Play is enabled when idle; Pause and Stop only while capturing.</Paragraph></ListItem>
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Menus</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
-                    <ListItem><Paragraph><Bold>File</Bold> — New Scribe, Save Scribe, Active (start/stop), Exit.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>File</Bold> — New Scribe, Save Scribe, Active (play/pause), Exit.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output (off shows the last 200 lines; the full text is still saved), Timestamps.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, and the Settings dialog.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>About</Bold> — Help and About.</Paragraph></ListItem>
@@ -59,6 +60,7 @@
                     <ListItem><Paragraph><Bold>Autosave</Bold> and <Bold>Default save folder</Bold> — where in-progress and final transcripts are written.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Only capture while Teams is in front</Bold> — pauses OCR when Teams isn't over the region, so trailing text isn't recorded after a meeting ends.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Bring Teams to front while capturing</Bold> — experimental; briefly focuses Teams for each grab.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Capture a participants image on save</Bold> — experimental; builds a PNG of names and avatars from the region.</Paragraph></ListItem>
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Tips for better accuracy</Paragraph>
@@ -69,7 +71,7 @@
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Files and privacy</Paragraph>
-                <Paragraph Margin="0,0,0,4">Work is autosaved to a rolling file at your chosen interval, so a crash won't lose much. Saved transcripts are named <Bold>yyyy-MM-dd-Meeting-HH-mm-Title.txt</Bold> (the time is when capture started). Capture, OCR and storage all happen on this PC.</Paragraph>
+                <Paragraph Margin="0,0,0,4">Work is autosaved to a rolling file at your chosen interval, so a crash won't lose much. Saved transcripts are named <Bold>yyyy-MM-dd-Meeting-HH-mm-Title.txt</Bold> (the time is when capture started). Capture, OCR (Windows OCR) and storage all happen on this PC — nothing is sent to the cloud.</Paragraph>
             </FlowDocument>
         </FlowDocumentScrollViewer>
     </DockPanel>

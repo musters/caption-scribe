@@ -16,7 +16,10 @@ render on screen.
 - **Save & clean up** — export to `.txt`/`.md`, with an optional cleanup pass that fixes common OCR
   mistakes (e.g. `f`→`t` misreads) and collapses repeated speaker names.
 - **Region tools** — drag-select a capture region on any monitor, highlight it, and re-select quickly.
-- **System tray** — runs minimized to the tray; start/stop from the tray or the main window.
+- **System tray** — runs minimized to the tray; Play, Pause, Stop, and New Scribe from the
+  right-click menu, or the same controls in the main window.
+- **Run on startup** — optional; launches in the tray when you sign in to Windows. A later
+  double-click reuses the running instance.
 - **Participants image (experimental)** — optionally builds a PNG of meeting participants (avatar + name)
   from the captured region. Off by default; enable it under **Settings**.
 - **No cloud dependencies** — capture, OCR, and storage all happen on this PC.
@@ -45,8 +48,8 @@ Or open `CaptionScribe.sln` in Visual Studio 2022 and press **F5**.
 1. In your meeting app (e.g. Teams), turn on **live captions**.
 2. In Caption Scribe, pick a capture region — the **Select** toolbar button, **Settings ▸ Select Capture
    Region**, or click the region readout at the top — then drag a box over the caption area (any monitor).
-3. Start capturing: the **Play** button, **Space**, the centre prompt, or **File ▸ Active**. The transcript
-   fills in live.
+3. Start capturing: the **Play** button, **Space**, the centre prompt, **File ▸ Active**, or tray **Play**.
+   The transcript fills in live. **Pause** stops capture without saving; **Stop** saves and clears.
 4. Use **Save** (or **Stop**) to write a file; you'll be offered a cleanup pass and asked for a meeting title.
 
 **Tips for accuracy:** increase the caption font size in the source app, draw the region snugly around just
@@ -65,8 +68,8 @@ folder, and the experimental participants capture.
 dotnet test
 ```
 
-The suite has Unit Tests covering transcript aggregation/formatting/cleanup, settings, view-models, OCR
-pixel conversion, frame-buffer pooling, and participant collection.
+The suite has unit tests covering transcript aggregation/formatting/cleanup, settings, view-models, OCR
+pixel conversion, frame-buffer pooling, startup registration, and participant collection.
 
 ## Project layout
 
@@ -79,8 +82,9 @@ pixel conversion, frame-buffer pooling, and participant collection.
 
 ## Privacy
 
-Caption Scribe reads pixels from a screen region you choose and runs OCR locally. Transcripts are written
-only to folders you pick (or the per-user autosave folder). Nothing is sent off the machine to the cloud.
+Caption Scribe reads pixels from a screen region you choose and runs OCR locally (Windows OCR). Transcripts
+are written only to folders you pick (or the per-user autosave folder). Nothing is sent off the machine.
+The app has no third-party runtime packages.
 
 ## License
 
