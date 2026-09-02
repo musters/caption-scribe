@@ -221,7 +221,9 @@ namespace CaptionScribe
                 _tray = new TrayIcon(
                     onOpen: ShowMainWindow,
                     onNewScribe: () => _viewModel.NewScribeCommand.Execute(null),
-                    onToggleActive: () => _viewModel.ToggleActive(),
+                    onPlay: () => _viewModel.PlayPauseCommand.Execute(null),
+                    onPause: () => _viewModel.PlayPauseCommand.Execute(null),
+                    onStop: () => _viewModel.StopCommand.Execute(null),
                     onShowRegion: () => _viewModel.HighlightCommand.Execute(null),
                     onSetRegion: () => _viewModel.SelectRegionCommand.Execute(null),
                     onSettings: () => _viewModel.SettingsCommand.Execute(null),

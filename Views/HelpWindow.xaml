@@ -39,7 +39,7 @@
                     <ListItem><Paragraph>Click the <Bold>region readout</Bold> at the top to pick a new region.</Paragraph></ListItem>
                     <ListItem><Paragraph>Scroll up in the transcript to pause <Bold>auto-scroll</Bold>; scroll back to the bottom to resume.</Paragraph></ListItem>
                     <ListItem><Paragraph>Hold <Bold>Alt</Bold> to reveal menu access keys.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Double-click the tray icon</Bold> to open; right-click it for Open, New Scribe, Active, Settings and Exit.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Double-click the tray icon</Bold> to open; right-click it for Open, New Scribe, Play, Pause, Stop, Settings and Exit.</Paragraph></ListItem>
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Menus</Paragraph>

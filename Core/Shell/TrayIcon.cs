@@ -19,14 +19,16 @@ namespace CaptionScribe.Core.Shell
         private readonly WinForms.NotifyIcon _notifyIcon;
         private readonly WinForms.ContextMenuStrip _menu;
         private readonly Drawing.Font _openFont;
-        private readonly WinForms.ToolStripMenuItem _activeItem;
         private readonly WinForms.ToolStripMenuItem _newScribeItem;
+        private readonly WinForms.ToolStripMenuItem _playItem;
+        private readonly WinForms.ToolStripMenuItem _pauseItem;
+        private readonly WinForms.ToolStripMenuItem _stopItem;
         private readonly Drawing.Icon _activeIcon;
         private readonly Drawing.Icon _inactiveIcon;
         private const int BalloonDurationMs = 3000;
 
-        public TrayIcon(Action onOpen, Action onNewScribe, Action onToggleActive, Action onShowRegion,
-            Action onSetRegion, Action onSettings, Action onExit)
+        public TrayIcon(Action onOpen, Action onNewScribe, Action onPlay, Action onPause, Action onStop,
+            Action onShowRegion, Action onSetRegion, Action onSettings, Action onExit)
         {
             _activeIcon = RenderIcon(active: true);
             _inactiveIcon = RenderIcon(active: false);
@@ -38,10 +40,9 @@ namespace CaptionScribe.Core.Shell
                 Font = _openFont,
             };
             _newScribeItem = new WinForms.ToolStripMenuItem("New Scribe", null, (_, _) => onNewScribe());
-            _activeItem = new WinForms.ToolStripMenuItem("Active", null, (_, _) => onToggleActive())
-            {
-                CheckOnClick = false,
-            };
+            _playItem = new WinForms.ToolStripMenuItem("Play", null, (_, _) => onPlay());
+            _pauseItem = new WinForms.ToolStripMenuItem("Pause", null, (_, _) => onPause());
+            _stopItem = new WinForms.ToolStripMenuItem("Stop", null, (_, _) => onStop());
             var showRegionItem = new WinForms.ToolStripMenuItem("Show Capture Region", null, (_, _) => onShowRegion());
             var setRegionItem = new WinForms.ToolStripMenuItem("Set Capture Region…", null, (_, _) => onSetRegion());
             var settingsItem = new WinForms.ToolStripMenuItem("Settings…", null, (_, _) => onSettings());
@@ -50,7 +51,9 @@ namespace CaptionScribe.Core.Shell
             _menu.Items.Add(openItem);
             _menu.Items.Add(new WinForms.ToolStripSeparator());
             _menu.Items.Add(_newScribeItem);
-            _menu.Items.Add(_activeItem);
+            _menu.Items.Add(_playItem);
+            _menu.Items.Add(_pauseItem);
+            _menu.Items.Add(_stopItem);
             _menu.Items.Add(showRegionItem);
             _menu.Items.Add(setRegionItem);
             _menu.Items.Add(settingsItem);
@@ -65,14 +68,17 @@ namespace CaptionScribe.Core.Shell
                 ContextMenuStrip = _menu,
             };
             _notifyIcon.DoubleClick += (_, _) => onOpen();
+            SetActive(false);
         }
 
-        public void SetActive(bool active)
+        public void SetActive(bool capturing)
         {
-            _activeItem.Checked = active;
-            _newScribeItem.Enabled = !active;
-            _notifyIcon.Icon = active ? _activeIcon : _inactiveIcon;
-            _notifyIcon.Text = active ? "Caption Scribe - capturing" : "Caption Scribe - idle";
+            _playItem.Enabled = !capturing;
+            _pauseItem.Enabled = capturing;
+            _stopItem.Enabled = capturing;
+            _newScribeItem.Enabled = !capturing;
+            _notifyIcon.Icon = capturing ? _activeIcon : _inactiveIcon;
+            _notifyIcon.Text = capturing ? "Caption Scribe - capturing" : "Caption Scribe - idle";
         }
 
         public void ShowBalloon(string message, WinForms.ToolTipIcon icon, string title = "Caption Scribe")
