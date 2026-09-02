@@ -6,6 +6,6 @@ namespace CaptionScribe.Services
     public interface ISettingsService
     {
         AppSettings Load();
-        void Save(AppSettings settings);
+        bool Save(AppSettings settings);
     }
 }

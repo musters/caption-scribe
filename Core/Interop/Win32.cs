@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -99,6 +99,18 @@ namespace CaptionScribe.Core.Interop
 
         [DllImport("Kernel32.dll")]
         private static extern uint GetCurrentThreadId();
+
+        private const uint ProcessQueryLimitedInformation = 0x1000;
+
+        [DllImport("Kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+        [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool QueryFullProcessImageName(IntPtr hProcess, uint dwFlags, StringBuilder lpExeName,
+            ref uint lpdwSize);
+
+        [DllImport("Kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr hObject);
 
         #endregion
 
@@ -221,16 +233,65 @@ namespace CaptionScribe.Core.Interop
             return new WindowInfo(hWnd, title, SafeGetProcessName(pid), pid, IsIconic(hWnd));
         }
 
+        private static readonly Dictionary<uint, (string Name, long Until)> ProcessNameCache = new();
+        private static readonly object ProcessNameGate = new();
+
         private static string SafeGetProcessName(uint pid)
         {
+            if (pid == 0)
+                return string.Empty;
+            long now = Environment.TickCount64;
+            lock (ProcessNameGate)
+            {
+                if (ProcessNameCache.TryGetValue(pid, out var cached) && cached.Until > now)
+                    return cached.Name;
+            }
+
+            string name = QueryProcessName(pid);
+            lock (ProcessNameGate)
+            {
+                EvictProcessNameCache(now);
+                ProcessNameCache[pid] = (name, now + 2000);
+            }
+            return name;
+        }
+
+        private static void EvictProcessNameCache(long now)
+        {
+            const int maxEntries = 64;
+            if (ProcessNameCache.Count < maxEntries)
+                return;
+            List<uint>? stale = null;
+            foreach (var kv in ProcessNameCache)
+            {
+                if (kv.Value.Until < now)
+                    (stale ??= new List<uint>()).Add(kv.Key);
+            }
+            if (stale is not null)
+            {
+                foreach (uint id in stale)
+                    ProcessNameCache.Remove(id);
+            }
+            if (ProcessNameCache.Count >= maxEntries)
+                ProcessNameCache.Clear();
+        }
+
+        private static string QueryProcessName(uint pid)
+        {
+            IntPtr handle = OpenProcess(ProcessQueryLimitedInformation, false, pid);
+            if (handle == IntPtr.Zero)
+                return string.Empty;
             try
             {
-                using var p = Process.GetProcessById((int)pid);
-                return p.ProcessName;
+                var sb = new StringBuilder(260);
+                uint size = (uint)sb.Capacity;
+                if (!QueryFullProcessImageName(handle, 0, sb, ref size))
+                    return string.Empty;
+                return Path.GetFileNameWithoutExtension(sb.ToString());
             }
-            catch
+            finally
             {
-                return string.Empty;
+                CloseHandle(handle);
             }
         }
 

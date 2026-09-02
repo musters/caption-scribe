@@ -24,7 +24,7 @@ namespace CaptionScribe.Services
         string? PickFolder(string? initialDirectory);
 
         void Info(string title, string message);
-        void CopyToClipboard(string text);
+        bool CopyToClipboard(string text);
 
         bool ShowSettings(AppSettings settings);
         void ShowHelp();

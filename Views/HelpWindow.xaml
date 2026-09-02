@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Caption Scribe — Help"
         Height="600" Width="620" MinHeight="360" MinWidth="460"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Topmost="True">
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <DockPanel Margin="16">
         <Button DockPanel.Dock="Bottom" Style="{StaticResource DialogButton}" Content="Close" Width="90" HorizontalAlignment="Right"
                 Margin="0,12,0,0" IsCancel="True" IsDefault="True" ToolTip="Close" />

@@ -189,20 +189,12 @@ namespace CaptionScribe.Services
             => LinesMatch(committed, incoming) || LooksLikeExtension(committed, incoming);
 
         private bool LinesMatch(string a, string b)
-        {
-            if (a.Equals(b, StringComparison.OrdinalIgnoreCase))
-                return true;
-            return Similarity(a, b) >= _similarityThreshold;
-        }
+            => TextSimilarity.Meets(a, b, _similarityThreshold);
 
         private static bool LooksLikeExtension(string existing, string incoming)
-        {
-            if (existing.Length == 0)
-                return false;
-            var e = existing.ToLowerInvariant();
-            var n = incoming.ToLowerInvariant();
-            return n.Length >= e.Length && n.StartsWith(e, StringComparison.Ordinal);
-        }
+            => existing.Length > 0
+               && incoming.Length >= existing.Length
+               && incoming.StartsWith(existing, StringComparison.OrdinalIgnoreCase);
 
         public IReadOnlyList<string> GetLines()
         {
@@ -292,39 +284,6 @@ namespace CaptionScribe.Services
                 }
             }
             return sb.ToString();
-        }
-
-        private static double Similarity(string a, string b)
-        {
-            a = a.ToLowerInvariant();
-            b = b.ToLowerInvariant();
-            int distance = Levenshtein(a, b);
-            int max = Math.Max(a.Length, b.Length);
-            return max == 0 ? 1.0 : 1.0 - (double)distance / max;
-        }
-
-        private static int Levenshtein(string a, string b)
-        {
-            int n = a.Length, m = b.Length;
-            if (n == 0) return m;
-            if (m == 0) return n;
-
-            var prev = new int[m + 1];
-            var curr = new int[m + 1];
-            for (int j = 0; j <= m; j++)
-                prev[j] = j;
-
-            for (int i = 1; i <= n; i++)
-            {
-                curr[0] = i;
-                for (int j = 1; j <= m; j++)
-                {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
-                }
-                (prev, curr) = (curr, prev);
-            }
-            return prev[m];
         }
     }
 }

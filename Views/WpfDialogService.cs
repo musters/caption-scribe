@@ -49,9 +49,18 @@ namespace CaptionScribe.Views
         public bool ConfirmYesNo(string title, string message)
             => ShowButtons(title, message, ("Yes", true, false), ("No", false, true)) == 0;
 
-        public void CopyToClipboard(string text)
+        public bool CopyToClipboard(string text)
         {
-            try { Clipboard.SetText(text); } catch { /* clipboard busy */ }
+            try
+            {
+                Clipboard.SetText(text);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _log.Warning("Clipboard copy failed. " + ex.Message);
+                return false;
+            }
         }
 
         // Best-matching Teams window's title right now (for the Settings "Detect" button), or null.
@@ -90,14 +99,14 @@ namespace CaptionScribe.Views
         public string? PromptMeetingTitle()
         {
             var dialog = new InputDialog("Meeting title (used in the file name):", "Save Scribe");
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
+            Prepare(dialog);
             return dialog.ShowDialog() == true ? dialog.ResponseText : null;
         }
 
         public void ShowAbout(string autoSavePath)
         {
             var dialog = new AboutWindow { DataContext = new AboutViewModel(autoSavePath) };
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
+            Prepare(dialog);
             dialog.ShowDialog();
         }
 
@@ -105,7 +114,7 @@ namespace CaptionScribe.Views
             params (string Text, bool IsDefault, bool IsCancel)[] buttons)
         {
             var dialog = new MessageDialog(title, message, buttons);
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
+            Prepare(dialog);
             dialog.ShowDialog();
             return dialog.Result;
         }
@@ -113,7 +122,7 @@ namespace CaptionScribe.Views
         public void ShowHelp()
         {
             var dialog = new HelpWindow();
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
+            Prepare(dialog);
             dialog.ShowDialog();
         }
 
@@ -121,9 +130,25 @@ namespace CaptionScribe.Views
         {
             var vm = new SettingsViewModel(settings, this, DetectTeamsWindowTitle, _startup, _log);
             var dialog = new SettingsWindow { DataContext = vm };
-            vm.CloseRequested += (_, result) => dialog.DialogResult = result;
-            if (ActiveOwner is { } owner) dialog.Owner = owner;
-            return dialog.ShowDialog() == true;
+            void OnClose(object? _, bool result) => dialog.DialogResult = result;
+            vm.CloseRequested += OnClose;
+            try
+            {
+                Prepare(dialog);
+                return dialog.ShowDialog() == true;
+            }
+            finally
+            {
+                vm.CloseRequested -= OnClose;
+            }
+        }
+
+        private void Prepare(Window dialog)
+        {
+            if (ActiveOwner is { } owner)
+                dialog.Owner = owner;
+            else
+                dialog.Topmost = true;
         }
     }
 }

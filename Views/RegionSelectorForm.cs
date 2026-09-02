@@ -12,6 +12,9 @@ namespace CaptionScribe.Views
     /// </summary>
     internal sealed class RegionSelectorForm : Form
     {
+        private const int MinRegionSize = 5;
+        private readonly Font _hintFont = new("Segoe UI", 12f);
+        private readonly SolidBrush _hintBrush = new(Color.White);
         private Point _start;
         private Rectangle _selection;
         private Rectangle _startScreenClient;
@@ -68,9 +71,7 @@ namespace CaptionScribe.Views
 
             _dragging = false;
 
-            // Ignore tiny drags (accidental clicks) rather than treating them as a real region.
-            const int minRegionSize = 5;
-            if (_selection.Width < minRegionSize || _selection.Height < minRegionSize)
+            if (_selection.Width < MinRegionSize || _selection.Height < MinRegionSize)
             {
                 DialogResult = DialogResult.Cancel;
                 Close();
@@ -114,13 +115,9 @@ namespace CaptionScribe.Views
             base.OnPaint(e);
             var g = e.Graphics;
 
-            using (var font = new Font("Segoe UI", 12f))
-            using (var textBrush = new SolidBrush(Color.White))
-            {
-                g.DrawString(
-                    "Drag over the captions on the meeting's monitor.  Release to confirm · Esc to cancel",
-                    font, textBrush, 24, 24);
-            }
+            g.DrawString(
+                "Drag over the captions on the meeting's monitor.  Release to confirm · Esc to cancel",
+                _hintFont, _hintBrush, 24, 24);
 
             if (_selection.Width > 0 && _selection.Height > 0)
             {
@@ -129,6 +126,16 @@ namespace CaptionScribe.Views
                 g.FillRectangle(fill, _selection);
                 g.DrawRectangle(pen, _selection);
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _hintFont.Dispose();
+                _hintBrush.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

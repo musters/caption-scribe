@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Windows.Input;
 using System.Windows.Threading;
 using CaptionScribe.Models;
@@ -29,6 +30,10 @@ namespace CaptionScribe.ViewModels
         private string _statusText = "";
         private string _regionText = "";
         private bool _autoScroll = true;
+        private int _refreshQueued;
+        private bool _lastCapturing;
+        private bool _lastHasContent;
+        private bool _refreshInitialized;
 
         /// <summary>Raised when the user asks to exit; the shell (App) performs the shutdown.</summary>
         public event EventHandler? ExitRequested;
@@ -179,31 +184,35 @@ namespace CaptionScribe.ViewModels
 
         private void NewScribe()
         {
-            if (_dialogs.ConfirmOkCancel("New Scribe",
-                "Start a new scribe? The current transcript will be cleared.\n" +
-                "(The previous transcript remains in the autosave folder.)"))
-            {
-                _controller.ClearTranscript();
-                _participants.Reset();
-            }
+            ResetTranscript(
+                _dialogs.ConfirmOkCancel("New Scribe",
+                    "Start a new scribe? The current transcript will be cleared.\n" +
+                    "(The previous transcript remains in the autosave folder.)"));
         }
 
         private void Clear()
         {
-            if (_dialogs.ConfirmYesNo("Clear",
-                "Are you sure you want to clear the current transcript?\n" +
-                "(The previous transcript remains in the autosave folder.)"))
-            {
-                _controller.ClearTranscript();
-                _participants.Reset();
-            }
+            ResetTranscript(
+                _dialogs.ConfirmYesNo("Clear",
+                    "Are you sure you want to clear the current transcript?\n" +
+                    "(The previous transcript remains in the autosave folder.)"));
+        }
+
+        private void ResetTranscript(bool confirmed)
+        {
+            if (!confirmed)
+                return;
+            _controller.ClearTranscript();
+            _participants.Reset();
         }
 
         private void Copy()
         {
             var text = _controller.GetTranscriptText();
-            if (!string.IsNullOrEmpty(text))
-                _dialogs.CopyToClipboard(text);
+            if (string.IsNullOrEmpty(text))
+                return;
+            if (!_dialogs.CopyToClipboard(text))
+                _dialogs.Info("Copy", "Could not copy the transcript to the clipboard.");
         }
 
         private bool Save()
@@ -298,7 +307,8 @@ namespace CaptionScribe.ViewModels
             if (!_dialogs.ShowSettings(_settings))
                 return;
 
-            _settingsService.Save(_settings);
+            if (!_settingsService.Save(_settings))
+                _dialogs.Info("Settings", "Settings were applied but could not be saved to disk.");
             _controller.ApplySettings();
             SyncParticipantCapture();
             OnPropertyChanged(nameof(ShowAllOutput));
@@ -323,11 +333,18 @@ namespace CaptionScribe.ViewModels
 
         private void OnCaptureStateChanged(object? sender, EventArgs e) => RefreshOnUi();
 
-        // Marshal off the capture thread; skip during shutdown.
+        // Marshal off the capture thread; skip during shutdown. Coalesce bursts onto one UI pass.
         private void RefreshOnUi()
         {
-            if (!_dispatcher.HasShutdownStarted)
-                _dispatcher.InvokeAsync(Refresh);
+            if (_dispatcher.HasShutdownStarted)
+                return;
+            if (Interlocked.Exchange(ref _refreshQueued, 1) != 0)
+                return;
+            _dispatcher.InvokeAsync(() =>
+            {
+                Interlocked.Exchange(ref _refreshQueued, 0);
+                Refresh();
+            });
         }
 
         private void Refresh()
@@ -342,7 +359,15 @@ namespace CaptionScribe.ViewModels
                 ? $"Region: {r.Width}×{r.Height} @ ({r.X}, {r.Y})"
                 : "Region: not set";
 
-            // Computed from controller state, so raise them explicitly and re-query command availability.
+            bool capturing = _controller.IsRunning;
+            bool hasContent = _controller.TranscriptLineCount > 0;
+            bool stateChanged = capturing != _lastCapturing || hasContent != _lastHasContent;
+            _lastCapturing = capturing;
+            _lastHasContent = hasContent;
+            if (!stateChanged && _refreshInitialized)
+                return;
+            _refreshInitialized = true;
+
             OnPropertyChanged(nameof(IsCapturing));
             OnPropertyChanged(nameof(IsActive));
             OnPropertyChanged(nameof(HasContent));

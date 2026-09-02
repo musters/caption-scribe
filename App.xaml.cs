@@ -32,9 +32,11 @@ namespace CaptionScribe
         private EventWaitHandle? _showWindowEvent;
         private RegisteredWaitHandle? _showWindowWait;
         private volatile bool _exiting;
+        private int _handlesReleased;
 
         private const string InstanceMutexName = @"Local\CaptionScribe";
         private const string ShowWindowEventName = @"Local\CaptionScribe.ShowWindow";
+        private const int UnregisterWaitMs = 500;
 
         // Set when Windows is logging off/shutting down, so exit never blocks the OS.
         private bool _systemShutdown;
@@ -58,14 +60,8 @@ namespace CaptionScribe
         }
 
         private static bool HasStartupArgument(string[] args)
-        {
-            foreach (string arg in args)
-            {
-                if (string.Equals(arg, StartupLaunchService.StartupArgument, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-            return false;
-        }
+            => Array.Exists(args, a =>
+                string.Equals(a, StartupLaunchService.StartupArgument, StringComparison.OrdinalIgnoreCase));
 
         // ---- INotificationService (log + tray balloon) ----
         public void Info(string message)
@@ -106,7 +102,7 @@ namespace CaptionScribe
             {
                 if (_settings.AutoDeleteOldAutoSaves)
                 {
-                    int removed = TranscriptAutoSaver.DeleteSavesOlderThan(_settings.AutoSaveDirectory, TimeSpan.FromDays(30));
+                    int removed = TranscriptAutoSaver.DeleteSavesOlderThan(_settings.AutoSaveDirectory, TranscriptAutoSaver.DefaultRetention);
                     if (removed > 0)
                         _log.Info($"Deleted {removed} autosave file(s) older than a month.");
                 }
@@ -143,10 +139,10 @@ namespace CaptionScribe
         private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
             _log?.Error("Unhandled UI exception.", e.Exception);
-            // Keep any in-progress capture alive and surface it without blocking the UI thread.
             e.Handled = true;
+            try { _controller?.Stop(); } catch { /* shutdown path */ }
             if (!Dispatcher.HasShutdownStarted)
-                _tray?.ShowBalloon("An unexpected error occurred; it was written to the log.",
+                _tray?.ShowBalloon("An unexpected error occurred; capture was paused and it was written to the log.",
                     WinForms.ToolTipIcon.Warning);
         }
 
@@ -159,22 +155,7 @@ namespace CaptionScribe
         private void OnExit(object sender, ExitEventArgs e)
         {
             _log?.Info("CaptionScribe exiting.");
-            _exiting = true;
-            if (_showWindowWait is not null)
-            {
-                using var done = new ManualResetEvent(false);
-                if (!_showWindowWait.Unregister(done))
-                    done.Set();
-                done.WaitOne(500);
-                _showWindowWait = null;
-            }
-            _showWindowEvent?.Dispose();
-            _showWindowEvent = null;
-            _instanceMutex?.Dispose();
-            _instanceMutex = null;
-            _regionService?.Dispose();
-            _controller?.Dispose();
-            _tray?.Dispose();
+            ReleaseStartupHandles();
         }
 
         private void OnMainWindowStateChanged(object? sender, EventArgs e)
@@ -210,48 +191,80 @@ namespace CaptionScribe
                 return;
             }
 
-            _log = new FileLog(DebugLoggingEnabled);
-            _log.Info(launchedAtStartup ? "CaptionScribe starting (startup)." : "CaptionScribe starting.");
+            bool ready = false;
+            try
+            {
+                _log = new FileLog(DebugLoggingEnabled);
+                _log.Info(launchedAtStartup ? "CaptionScribe starting (startup)." : "CaptionScribe starting.");
 
-            WireGlobalExceptionHandlers();
+                WireGlobalExceptionHandlers();
 
-            _settingsService = new SettingsService(_log);
-            _settings = _settingsService.Load();
-            if (_settings.EnableDebugLogging)
-                _log.Debug("Debug logging is enabled.");
+                _settingsService = new SettingsService(_log);
+                _settings = _settingsService.Load();
+                if (_settings.EnableDebugLogging)
+                    _log.Debug("Debug logging is enabled.");
 
-            _participants = new ParticipantCollector();
-            _controller = new CaptureController(_settings, _log, _participants);
-            _controller.CaptureError += OnCaptureError;
+                _participants = new ParticipantCollector();
+                _controller = new CaptureController(_settings, _log, _participants);
+                _controller.CaptureError += OnCaptureError;
 
-            _dialogs = new WpfDialogService(new StartupLaunchService(_log), _log);
-            _regionService = new RegionService();
-            _viewModel = new MainViewModel(_controller, _settings, _settingsService, _dialogs, _regionService, this, new TextFileWriter(), _participants);
-            _viewModel.ExitRequested += (_, _) => ExitApp();
-            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+                _dialogs = new WpfDialogService(new StartupLaunchService(_log), _log);
+                _regionService = new RegionService();
+                _viewModel = new MainViewModel(_controller, _settings, _settingsService, _dialogs, _regionService, this, new TextFileWriter(), _participants);
+                _viewModel.ExitRequested += (_, _) => ExitApp();
+                _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
-            _mainWindow = new MainWindow { DataContext = _viewModel };
-            _mainWindow.StateChanged += OnMainWindowStateChanged;
-            _dialogs.Owner = _mainWindow;
+                _mainWindow = new MainWindow { DataContext = _viewModel };
+                _mainWindow.StateChanged += OnMainWindowStateChanged;
+                _dialogs.Owner = _mainWindow;
 
-            _tray = new TrayIcon(
-                onOpen: ShowMainWindow,
-                onNewScribe: () => _viewModel.NewScribeCommand.Execute(null),
-                onToggleActive: () => _viewModel.ToggleActive(),
-                onShowRegion: () => _viewModel.HighlightCommand.Execute(null),
-                onSetRegion: () => _viewModel.SelectRegionCommand.Execute(null),
-                onSettings: () => _viewModel.SettingsCommand.Execute(null),
-                onExit: ExitApp);
-            _tray.SetActive(_viewModel.IsCapturing);
+                _tray = new TrayIcon(
+                    onOpen: ShowMainWindow,
+                    onNewScribe: () => _viewModel.NewScribeCommand.Execute(null),
+                    onToggleActive: () => _viewModel.ToggleActive(),
+                    onShowRegion: () => _viewModel.HighlightCommand.Execute(null),
+                    onSetRegion: () => _viewModel.SelectRegionCommand.Execute(null),
+                    onSettings: () => _viewModel.SettingsCommand.Execute(null),
+                    onExit: ExitApp);
+                _tray.SetActive(_viewModel.IsCapturing);
 
-            StartShowWindowListener();
+                StartShowWindowListener();
 
-            if (!launchedAtStartup)
-                _mainWindow.Show();
+                if (!launchedAtStartup)
+                    _mainWindow.Show();
 
-            WarnIfOcrUnavailable(showBalloon: !launchedAtStartup);
+                WarnIfOcrUnavailable(showBalloon: !launchedAtStartup);
 
-            ManageAutoSaveCacheOnStartup(_dialogs, prompt: !launchedAtStartup);
+                ManageAutoSaveCacheOnStartup(_dialogs, prompt: !launchedAtStartup);
+                ready = true;
+            }
+            finally
+            {
+                if (!ready)
+                    ReleaseStartupHandles();
+            }
+        }
+
+        private void ReleaseStartupHandles()
+        {
+            if (Interlocked.Exchange(ref _handlesReleased, 1) != 0)
+                return;
+            _exiting = true;
+            if (_showWindowWait is not null)
+            {
+                using var done = new ManualResetEvent(false);
+                if (!_showWindowWait.Unregister(done))
+                    done.Set();
+                done.WaitOne(UnregisterWaitMs);
+                _showWindowWait = null;
+            }
+            _showWindowEvent?.Dispose();
+            _showWindowEvent = null;
+            _instanceMutex?.Dispose();
+            _instanceMutex = null;
+            _regionService?.Dispose();
+            _controller?.Dispose();
+            _tray?.Dispose();
         }
 
         private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)

@@ -101,8 +101,12 @@ namespace CaptionScribe.Services
 
         // Fixes digits that are really letters (e.g. "0K" -> "OK"), but only inside a mixed
         // letter/digit word. Standalone numbers and number-like tokens are left as numbers.
+        private static readonly Regex MixedAlphanumeric = new("[A-Za-z0-9]+", RegexOptions.Compiled);
+        private static readonly Regex OrdinalSuffix = new(@"^\d+(st|nd|rd|th)$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private static string FixDigitsInWords(string line)
-            => Regex.Replace(line, "[A-Za-z0-9]+", m => ConvertToken(m.Value));
+            => MixedAlphanumeric.Replace(line, m => ConvertToken(m.Value));
 
         private static string ConvertToken(string token)
         {
@@ -112,7 +116,7 @@ namespace CaptionScribe.Services
                 return token;                                   // pure word or pure number
             if (letters < digits)
                 return token;                                   // number-like ("10x", "24h")
-            if (Regex.IsMatch(token, @"^\d+(st|nd|rd|th)$", RegexOptions.IgnoreCase))
+            if (OrdinalSuffix.IsMatch(token))
                 return token;                                   // ordinal ("1st", "2nd")
             if (token.Any(c => char.IsDigit(c) && !DigitLookAlike.ContainsKey(c)))
                 return token;                                   // a digit with no look-alike

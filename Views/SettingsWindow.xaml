@@ -4,7 +4,7 @@
         Title="Caption Scribe — Settings"
         Width="640" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True">
+        ResizeMode="NoResize" ShowInTaskbar="False">
     <Window.Resources>
         <ControlTemplate x:Key="FieldErrorTemplate">
             <StackPanel>

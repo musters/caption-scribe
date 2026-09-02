@@ -106,16 +106,16 @@ namespace CaptionScribe.Services
         private static void AppendCaptureRegionReport(StringBuilder sb, CaptureRegion? region)
         {
             sb.AppendLine("Capture region:");
-            if (region is null)
+            if (region is not { } r)
             {
                 sb.AppendLine("  (not set)");
                 return;
             }
 
-            sb.AppendLine($"  {region.Width}×{region.Height} @ ({region.X}, {region.Y})");
+            sb.AppendLine($"  {r.Width}×{r.Height} @ ({r.X}, {r.Y})");
 
-            int cx = region.X + region.Width / 2;
-            int cy = region.Y + region.Height / 2;
+            int cx = r.X + r.Width / 2;
+            int cy = r.Y + r.Height / 2;
             IntPtr under = Win32.RootWindowAt(cx, cy);
             sb.AppendLine($"  Window at centre: {Describe(under)}");
 

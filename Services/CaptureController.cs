@@ -23,9 +23,11 @@ namespace CaptionScribe.Services
         // Consistent view of capture-relevant settings; swapped atomically when they change.
         private volatile CaptureSettings _snapshot;
 
+        private readonly object _lifecycle = new();
         private volatile CancellationTokenSource? _cts;
         private Task? _loop;
         private volatile bool _running;
+        private int _transcriptEpoch;
 
         // Set once when capture pauses because Teams isn't over the region; reset when it returns.
         private bool _teamsMissingNotified;
@@ -33,9 +35,6 @@ namespace CaptionScribe.Services
         // Notify once at the onset of a failure streak, then auto-pause after this many in a row.
         private const int MaxConsecutiveCaptureFailures = 5;
         private readonly CaptureFailurePolicy _failurePolicy = new(MaxConsecutiveCaptureFailures);
-
-        // Fingerprint of the last grabbed frame; identical frames skip OCR to cut work and allocations.
-        private long _lastFrameHash;
 
         // The single capture loop feeds the frame observer (participants) on this cadence, reusing one grab + engine.
         private static readonly TimeSpan ParticipantSampleInterval = TimeSpan.FromSeconds(4);
@@ -83,85 +82,131 @@ namespace CaptionScribe.Services
 
         public void Start()
         {
-            if (_running) return;
-            if (_snapshot.Region is null) return;
-            if (!_ocr.IsAvailable)
-            {
-                _log.Warning("Start aborted: no OCR language pack is available.");
-                CaptureError?.Invoke(this, "No OCR language pack is available on this system.");
+            if (_running)
                 return;
+
+            JoinPending();
+
+            bool started = false;
+            lock (_lifecycle)
+            {
+                if (_running)
+                    return;
+                if (_snapshot.Region is null)
+                    return;
+                if (!_ocr.IsAvailable)
+                {
+                    _log.Warning("Start aborted: no OCR language pack is available.");
+                    CaptureError?.Invoke(this, "No OCR language pack is available on this system.");
+                    return;
+                }
+
+                _teamsMissingNotified = false;
+                _failurePolicy.RecordSuccess();
+                _capture.ResetChangeDetection();
+                _lastParticipantSampleUtc = DateTime.MinValue;
+                _sessionStartedAt ??= DateTime.Now;
+                var cts = new CancellationTokenSource();
+                _cts = cts;
+                _running = true;
+                _loop = Task.Run(() => CaptureLoopAsync(cts));
+                started = true;
             }
 
-            _teamsMissingNotified = false;
-            _failurePolicy.RecordSuccess();
-            _lastFrameHash = 0;
-            _lastParticipantSampleUtc = DateTime.MinValue;
-            _sessionStartedAt ??= DateTime.Now;
-            var cts = new CancellationTokenSource();
-            _cts = cts;
-            _running = true;
-            _loop = Task.Run(() => CaptureLoopAsync(cts));
-
-            var period = TimeSpan.FromMinutes(Math.Max(1, _settings.AutoSaveIntervalMinutes));
-            _autoSaver.Start(period);
+            if (!started)
+                return;
+            _autoSaver.Start(TimeSpan.FromMinutes(Math.Max(1, _settings.AutoSaveIntervalMinutes)));
             _log.Info("Capture started.");
         }
 
         public void Stop()
         {
-            bool wasRunning = _running;
-            _running = false;
-            try { _cts?.Cancel(); } catch { /* already disposed */ }
-
+            bool wasRunning;
+            lock (_lifecycle)
+            {
+                wasRunning = _running;
+                _running = false;
+                try { _cts?.Cancel(); } catch { /* already disposed */ }
+            }
             _autoSaver.Stop();
             if (wasRunning)
                 _log.Info("Capture stopped.");
         }
 
+        private void JoinPending()
+        {
+            Task? loop;
+            lock (_lifecycle)
+            {
+                _running = false;
+                try { _cts?.Cancel(); } catch { /* already disposed */ }
+                loop = _loop;
+                _loop = null;
+            }
+            if (loop is not null)
+            {
+                try { loop.GetAwaiter().GetResult(); }
+                catch (OperationCanceledException) { /* normal stop */ }
+                catch (Exception ex) { _log.Warning("Capture loop ended with an error: " + ex.Message); }
+            }
+            lock (_lifecycle)
+            {
+                if (_loop is null)
+                    _cts = null;
+            }
+        }
+
         private async Task CaptureLoopAsync(CancellationTokenSource cts)
         {
             var token = cts.Token;
-            var interval = TimeSpan.FromMilliseconds(Math.Max(400, _snapshot.CaptureIntervalMs));
-            using var timer = new PeriodicTimer(interval);
             bool autoPaused = false;
+            bool captureImmediately = true;
             try
             {
-                do
+                while (!token.IsCancellationRequested)
                 {
-                    if (token.IsCancellationRequested)
+                    int ms = Math.Max(AppSettings.MinCaptureIntervalMs, _snapshot.CaptureIntervalMs);
+                    using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(ms));
+                    if (!captureImmediately && !await SafeWaitAsync(timer, token))
                         break;
-
-                    try
+                    captureImmediately = false;
+                    do
                     {
-                        var s = _snapshot;   // one consistent view for this cycle
-                        if (s.Region is not null && TeamsPresentForCapture(s))
-                        {
-                            var raw = await GrabRawAsync(s, token);   // pooled buffer owned by _capture
-                            long frame = _capture.Fingerprint(raw);
-                            if (frame != _lastFrameHash)
-                            {
-                                // Only OCR when the region's pixels actually changed since the last grab.
-                                _lastFrameHash = frame;
-                                await RecognizeCaptionsAsync(raw, s);
-                            }
-                            await MaybeSampleParticipantsAsync(raw, token);
-                        }
-                        NoteCaptureSuccess();
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Cancellation is a normal stop, not a capture failure.
-                    }
-                    catch (Exception ex)
-                    {
-                        if (NoteCaptureFailure(ex))
-                        {
-                            autoPaused = true;
+                        if (token.IsCancellationRequested)
                             break;
+
+                        try
+                        {
+                            var s = _snapshot;
+                            if (s.Region is not null && TeamsPresentForCapture(s))
+                            {
+                                var raw = await GrabRawAsync(s, token);
+                                if (_capture.HasMeaningfulChange(raw))
+                                    await RecognizeCaptionsAsync(raw, s, token);
+                            }
+                            NoteCaptureSuccess();
                         }
+                        catch (OperationCanceledException)
+                        {
+                            // Cancellation is a normal stop, not a capture failure.
+                        }
+                        catch (Exception ex)
+                        {
+                            if (NoteCaptureFailure(ex))
+                            {
+                                autoPaused = true;
+                                break;
+                            }
+                        }
+
+                        if (Math.Max(AppSettings.MinCaptureIntervalMs, _snapshot.CaptureIntervalMs) != ms)
+                            break;
                     }
+                    while (!autoPaused && await SafeWaitAsync(timer, token));
+
+                    if (autoPaused)
+                        break;
                 }
-                while (await SafeWaitAsync(timer, token));
             }
             finally
             {
@@ -225,7 +270,7 @@ namespace CaptionScribe.Services
         /// </summary>
         private async Task<Bitmap> GrabRawAsync(CaptureSettings s, CancellationToken token)
         {
-            var region = s.Region!;
+            var region = s.Region!.Value;
             if (!s.FocusSwitchEnabled)
                 return _capture.CaptureRaw(region);
 
@@ -253,26 +298,38 @@ namespace CaptionScribe.Services
         }
 
         // Captions OCR the upscaled/enhanced image so text accuracy is unchanged; the raw frame stays native.
-        private async Task RecognizeCaptionsAsync(Bitmap raw, CaptureSettings s)
+        // Participant collection reuses that layout (boxes scaled back to raw pixels) — one OCR per changed frame.
+        private async Task RecognizeCaptionsAsync(Bitmap raw, CaptureSettings s, CancellationToken token)
         {
             // Both raw and the processed image are pooled buffers owned by _capture; do not dispose them.
-            Bitmap ocrImage = (s.UpscaleFactor > 1 || s.EnhanceForOcr)
-                ? _capture.Process(raw, s.UpscaleFactor, s.EnhanceForOcr)
+            int scale = Math.Max(1, s.UpscaleFactor);
+            Bitmap ocrImage = (scale > 1 || s.EnhanceForOcr)
+                ? _capture.Process(raw, scale, s.EnhanceForOcr)
                 : raw;
 
-            var lines = await _ocr.RecognizeLinesAsync(ocrImage);
+            int epoch = Volatile.Read(ref _transcriptEpoch);
+            var layout = await _ocr.RecognizeLayoutAsync(ocrImage,
+                includeBoxes: _frameObserver is { WantsFrames: true }, token);
+            token.ThrowIfCancellationRequested();
+            if (epoch != Volatile.Read(ref _transcriptEpoch))
+                return;
+
             if (_log.IsDebugEnabled)
-                _log.Debug($"OCR produced {lines.Count} line(s).");
-            if (lines.Count > 0)
+                _log.Debug($"OCR produced {layout.Count} line(s).");
+            if (layout.Count > 0)
             {
-                _aggregator.AddSnapshot(lines);
+                var texts = new List<string>(layout.Count);
+                foreach (var line in layout)
+                    texts.Add(line.Text);
+                _aggregator.AddSnapshot(texts);
                 TranscriptUpdated?.Invoke(this, EventArgs.Empty);
             }
+
+            NotifyParticipants(raw, layout, scale, token);
         }
 
-        // On a slow cadence, hand the same native frame + its layout to the observer (participant collection),
-        // reusing this loop's single grab and OCR engine instead of capturing/recognizing the screen again.
-        private async Task MaybeSampleParticipantsAsync(Bitmap raw, CancellationToken token)
+        private void NotifyParticipants(Bitmap raw, IReadOnlyList<RecognizedLine> layout, int scale,
+            CancellationToken token)
         {
             if (_frameObserver is not { WantsFrames: true })
                 return;
@@ -280,11 +337,18 @@ namespace CaptionScribe.Services
             var now = DateTime.UtcNow;
             if (now - _lastParticipantSampleUtc < ParticipantSampleInterval)
                 return;
-            _lastParticipantSampleUtc = now;
-
             token.ThrowIfCancellationRequested();
-            var layout = await _ocr.RecognizeLayoutAsync(raw);
-            _frameObserver.OnFrame(raw, layout);
+            _lastParticipantSampleUtc = now;
+            _frameObserver.OnFrame(raw, scale <= 1 ? layout : ScaleLayout(layout, scale));
+        }
+
+        private static IReadOnlyList<RecognizedLine> ScaleLayout(IReadOnlyList<RecognizedLine> layout, int scale)
+        {
+            double f = scale;
+            var scaled = new List<RecognizedLine>(layout.Count);
+            foreach (var line in layout)
+                scaled.Add(new RecognizedLine(line.Text, line.X / f, line.Y / f, line.Width / f, line.Height / f));
+            return scaled;
         }
 
         // When "require Teams window" is on (and we're not force-focusing Teams), skip OCR unless a Teams
@@ -294,7 +358,7 @@ namespace CaptionScribe.Services
             if (!s.RequireTeamsWindow || s.FocusSwitchEnabled)
                 return true;
 
-            var region = s.Region!;
+            var region = s.Region!.Value;
             int cx = region.X + region.Width / 2;
             int cy = region.Y + region.Height / 2;
             bool present = _windows.IsTeamsAtPoint(cx, cy);
@@ -334,9 +398,10 @@ namespace CaptionScribe.Services
         {
             // Finalize the outgoing file before clearing, so the previous transcript is complete on disk.
             _autoSaver.Flush(final: true);
+            Interlocked.Increment(ref _transcriptEpoch);
             _aggregator.Clear();
             _autoSaver.Roll();
-            _lastFrameHash = 0;
+            _capture.ResetChangeDetection();
             _sessionStartedAt = _running ? DateTime.Now : null;
             _log.Info("Transcript cleared.");
             TranscriptUpdated?.Invoke(this, EventArgs.Empty);
@@ -345,11 +410,9 @@ namespace CaptionScribe.Services
         public void Dispose()
         {
             Stop();
-            try { _loop?.Wait(1000); } catch { /* ignore shutdown races */ }
+            JoinPending();
             _autoSaver.Dispose();
-            // Safe after Wait: the loop reads pooled frames only synchronously (OCR copies them out before awaiting).
             _capture.Dispose();
-            // The capture loop disposes its own CancellationTokenSource when it exits.
         }
     }
 }

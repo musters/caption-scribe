@@ -8,18 +8,20 @@ namespace CaptionScribe.Tests
     public class ScreenCaptureServiceTests
     {
         [Fact]
-        public void Fingerprint_IsEqualForIdenticalPixels_AndDiffersWhenTheyChange()
+        public void HasMeaningfulChange_FirstFrameAndRealChange_NotTinyNoise()
         {
-            var svc = new ScreenCaptureService();
-            using var a = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
-            using var b = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(a)) g.Clear(Color.White);
-            using (var g = Graphics.FromImage(b)) g.Clear(Color.White);
+            using var svc = new ScreenCaptureService();
+            using var frame = new Bitmap(64, 64, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(frame)) g.Clear(Color.White);
 
-            Assert.Equal(svc.Fingerprint(a), svc.Fingerprint(b));
+            Assert.True(svc.HasMeaningfulChange(frame));
+            Assert.False(svc.HasMeaningfulChange(frame));
 
-            using (var g = Graphics.FromImage(b)) g.Clear(Color.Black);
-            Assert.NotEqual(svc.Fingerprint(a), svc.Fingerprint(b));
+            frame.SetPixel(1, 1, Color.Red);
+            Assert.False(svc.HasMeaningfulChange(frame));
+
+            using (var g = Graphics.FromImage(frame)) g.Clear(Color.Black);
+            Assert.True(svc.HasMeaningfulChange(frame));
         }
 
         [Fact]

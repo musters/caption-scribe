@@ -49,7 +49,7 @@ namespace CaptionScribe.Tests
         public AppSettings? LastSaved { get; private set; }
 
         public AppSettings Load() => new();
-        public void Save(AppSettings settings) { SaveCalls++; LastSaved = settings; }
+        public bool Save(AppSettings settings) { SaveCalls++; LastSaved = settings; return true; }
     }
 
     internal sealed class FakeRegionService : IRegionService

@@ -95,7 +95,7 @@ namespace CaptionScribe.ViewModels
         public string CaptureInterval
         {
             get => _captureInterval;
-            set { if (Set(ref _captureInterval, value)) ValidateInt(value, 200, 60000, nameof(CaptureInterval)); }
+            set { if (Set(ref _captureInterval, value)) ValidateInt(value, AppSettings.MinCaptureIntervalMs, AppSettings.MaxCaptureIntervalMs, nameof(CaptureInterval)); }
         }
         public string AutoSaveInterval
         {
@@ -211,10 +211,11 @@ namespace CaptionScribe.ViewModels
             Hint = title;
         }
 
-        private static void EnsureDir(string dir)
+        private static bool EnsureDir(string dir)
         {
-            if (string.IsNullOrWhiteSpace(dir)) return;
-            try { Directory.CreateDirectory(dir); } catch { /* the app falls back if the folder is missing */ }
+            if (string.IsNullOrWhiteSpace(dir)) return true;
+            try { Directory.CreateDirectory(dir); return true; }
+            catch { return false; }
         }
 
         public IEnumerable GetErrors(string? propertyName)
@@ -226,6 +227,13 @@ namespace CaptionScribe.ViewModels
 
         private void Save()
         {
+            if (!EnsureDir(AutoSaveDir.Trim()) || !EnsureDir(DefaultSaveDir.Trim()))
+            {
+                _log.Warning("Could not create a settings folder.");
+                _dialogs.Info("Settings", "Could not create the save folder. Check the path and try again.");
+                return;
+            }
+
             try
             {
                 if (RunOnStartup != _startupEnabledAtOpen)
@@ -257,9 +265,6 @@ namespace CaptionScribe.ViewModels
             _settings.AutoSavePromptThreshold = Int(AutoSavePromptThreshold);
             _settings.AutoDeleteOldAutoSaves = AutoDeleteOldAutoSaves;
             _settings.EnableParticipantCapture = EnableParticipantCapture;
-
-            EnsureDir(_settings.AutoSaveDirectory);
-            EnsureDir(_settings.DefaultSaveDirectory);
 
             CloseRequested?.Invoke(this, true);
         }
@@ -293,7 +298,7 @@ namespace CaptionScribe.ViewModels
 
         private void ValidateAll()
         {
-            ValidateInt(CaptureInterval, 200, 60000, nameof(CaptureInterval));
+            ValidateInt(CaptureInterval, AppSettings.MinCaptureIntervalMs, AppSettings.MaxCaptureIntervalMs, nameof(CaptureInterval));
             ValidateInt(AutoSaveInterval, 1, 60, nameof(AutoSaveInterval));
             ValidateInt(Upscale, 1, 4, nameof(Upscale));
             ValidateDouble(Threshold, 0.0, 1.0, nameof(Threshold));

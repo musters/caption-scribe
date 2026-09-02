@@ -35,7 +35,7 @@ namespace CaptionScribe.Tests
         }
         public string? PickFolder(string? initialDirectory) => FolderToReturn;
         public void Info(string title, string message) { LastInfoTitle = title; LastInfoMessage = message; }
-        public void CopyToClipboard(string text) { LastClipboardText = text; }
+        public bool CopyToClipboard(string text) { LastClipboardText = text; return true; }
         public bool ShowSettings(AppSettings settings) { ShowSettingsCalls++; return ShowSettingsResult; }
         public void ShowHelp() { ShowHelpCalls++; }
         public void ShowAbout(string autoSavePath) { ShowAboutCalls++; LastAboutPath = autoSavePath; }

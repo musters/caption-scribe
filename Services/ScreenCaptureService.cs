@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using CaptionScribe.Models;
 
 namespace CaptionScribe.Services
@@ -12,6 +11,8 @@ namespace CaptionScribe.Services
         // Reused frame buffers (the capture loop is single-threaded); avoids per-cycle LOH churn.
         private Bitmap? _rawPool;
         private Bitmap? _processedPool;
+        private Graphics? _rawGraphics;
+        private Graphics? _processedGraphics;
 
         /// <summary>
         /// Grabs the screen region at native resolution and color into a reused buffer. The returned bitmap is
@@ -19,9 +20,8 @@ namespace CaptionScribe.Services
         /// </summary>
         public Bitmap CaptureRaw(CaptureRegion region)
         {
-            var raw = EnsurePool(ref _rawPool, region.Width, region.Height);
-            using var g = Graphics.FromImage(raw);
-            g.CopyFromScreen(region.X, region.Y, 0, 0,
+            var raw = EnsurePool(ref _rawPool, ref _rawGraphics, region.Width, region.Height);
+            _rawGraphics!.CopyFromScreen(region.X, region.Y, 0, 0,
                 new Size(region.Width, region.Height), CopyPixelOperation.SourceCopy);
             return raw;
         }
@@ -33,34 +33,35 @@ namespace CaptionScribe.Services
         public Bitmap Process(Bitmap raw, int upscaleFactor, bool enhance)
         {
             int scale = Math.Max(1, upscaleFactor);
-            var processed = EnsurePool(ref _processedPool, raw.Width * scale, raw.Height * scale);
-            using (var g = Graphics.FromImage(processed))
-            {
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.PixelOffsetMode = PixelOffsetMode.Half;
+            var processed = EnsurePool(ref _processedPool, ref _processedGraphics, raw.Width * scale, raw.Height * scale);
+            var g = _processedGraphics!;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
 
-                if (enhance)
-                {
-                    using var attributes = new ImageAttributes();
-                    attributes.SetColorMatrix(GrayscaleContrast);
-                    var dest = new Rectangle(0, 0, processed.Width, processed.Height);
-                    g.DrawImage(raw, dest, 0, 0, raw.Width, raw.Height, GraphicsUnit.Pixel, attributes);
-                }
-                else
-                {
-                    g.DrawImage(raw, 0, 0, processed.Width, processed.Height);
-                }
+            if (enhance)
+            {
+                using var attributes = new ImageAttributes();
+                attributes.SetColorMatrix(GrayscaleContrast);
+                var dest = new Rectangle(0, 0, processed.Width, processed.Height);
+                g.DrawImage(raw, dest, 0, 0, raw.Width, raw.Height, GraphicsUnit.Pixel, attributes);
+            }
+            else
+            {
+                g.DrawImage(raw, 0, 0, processed.Width, processed.Height);
             }
             return processed;
         }
 
         // Reuses the pooled bitmap when the size matches, otherwise (re)allocates it.
-        private static Bitmap EnsurePool(ref Bitmap? pool, int width, int height)
+        private static Bitmap EnsurePool(ref Bitmap? pool, ref Graphics? graphics, int width, int height)
         {
             if (pool is null || pool.Width != width || pool.Height != height)
             {
+                graphics?.Dispose();
+                graphics = null;
                 pool?.Dispose();
                 pool = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                graphics = Graphics.FromImage(pool);
             }
             return pool;
         }
@@ -68,28 +69,68 @@ namespace CaptionScribe.Services
         /// <summary>Frees the pooled frame buffers (called when capture stops so idle memory stays low).</summary>
         public void ReleaseBuffers()
         {
+            _rawGraphics?.Dispose();
+            _processedGraphics?.Dispose();
+            _rawGraphics = null;
+            _processedGraphics = null;
             _rawPool?.Dispose();
             _processedPool?.Dispose();
             _rawPool = null;
             _processedPool = null;
+            ResetChangeDetection();
         }
 
         public void Dispose() => ReleaseBuffers();
 
-        private byte[]? _hashBuffer;
+        private readonly object _sampleGate = new();
+        private byte[]? _prevSample;
+        private byte[]? _currSample;
 
-        /// <summary>Fast content fingerprint of a bitmap; identical fingerprints mean identical pixels.</summary>
-        public long Fingerprint(Bitmap bitmap)
+        /// <summary>True when the frame differs enough from the last accepted one to warrant OCR.</summary>
+        public unsafe bool HasMeaningfulChange(Bitmap bitmap)
         {
+            const int step = 4;
             var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
             var data = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             try
             {
-                int length = data.Stride * data.Height;
-                if (_hashBuffer is null || _hashBuffer.Length < length)
-                    _hashBuffer = new byte[length];
-                Marshal.Copy(data.Scan0, _hashBuffer, 0, length);
-                return Hash(_hashBuffer, length);
+                lock (_sampleGate)
+                {
+                    int w = bitmap.Width, h = bitmap.Height;
+                    int nx = (w + step - 1) / step;
+                    int ny = (h + step - 1) / step;
+                    int n = nx * ny;
+                    if (_currSample is null || _currSample.Length != n)
+                        _currSample = new byte[n];
+
+                    byte* src = (byte*)data.Scan0;
+                    int i = 0;
+                    for (int y = 0; y < h; y += step)
+                    {
+                        byte* row = src + (long)y * data.Stride;
+                        for (int x = 0; x < w; x += step)
+                            _currSample[i++] = row[x * 4 + 1];
+                    }
+
+                    if (_prevSample is null || _prevSample.Length != n)
+                    {
+                        _prevSample = (byte[])_currSample.Clone();
+                        return true;
+                    }
+
+                    int threshold = Math.Max(1, n / 200);
+                    int changed = 0;
+                    for (i = 0; i < n; i++)
+                    {
+                        if (_prevSample[i] != _currSample[i] && ++changed >= threshold)
+                            break;
+                    }
+                    if (changed < threshold)
+                        return false;
+
+                    Buffer.BlockCopy(_currSample, 0, _prevSample, 0, n);
+                    return true;
+                }
             }
             finally
             {
@@ -97,18 +138,13 @@ namespace CaptionScribe.Services
             }
         }
 
-        // FNV-1a over 8-byte words (with a byte tail); fast, and any pixel change flips it.
-        private static long Hash(byte[] data, int length)
+        public void ResetChangeDetection()
         {
-            const ulong prime = 1099511628211UL;
-            ulong hash = 14695981039346656037UL;
-            int i = 0;
-            int words = length - (length % 8);
-            for (; i < words; i += 8)
-                hash = (hash ^ BitConverter.ToUInt64(data, i)) * prime;
-            for (; i < length; i++)
-                hash = (hash ^ data[i]) * prime;
-            return unchecked((long)hash);
+            lock (_sampleGate)
+            {
+                _prevSample = null;
+                _currSample = null;
+            }
         }
 
         // Grayscale (luminance) with a mild contrast boost centred on mid-grey, to sharpen thin text.

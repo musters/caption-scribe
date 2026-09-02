@@ -17,10 +17,13 @@ namespace CaptionScribe.Core.Shell
         private const string SlashData = "M5,96 L95,5";
 
         private readonly WinForms.NotifyIcon _notifyIcon;
+        private readonly WinForms.ContextMenuStrip _menu;
+        private readonly Drawing.Font _openFont;
         private readonly WinForms.ToolStripMenuItem _activeItem;
         private readonly WinForms.ToolStripMenuItem _newScribeItem;
         private readonly Drawing.Icon _activeIcon;
         private readonly Drawing.Icon _inactiveIcon;
+        private const int BalloonDurationMs = 3000;
 
         public TrayIcon(Action onOpen, Action onNewScribe, Action onToggleActive, Action onShowRegion,
             Action onSetRegion, Action onSettings, Action onExit)
@@ -28,11 +31,11 @@ namespace CaptionScribe.Core.Shell
             _activeIcon = RenderIcon(active: true);
             _inactiveIcon = RenderIcon(active: false);
 
-            var menu = new WinForms.ContextMenuStrip();
+            _menu = new WinForms.ContextMenuStrip();
+            _openFont = new Drawing.Font(_menu.Font, Drawing.FontStyle.Bold);
             var openItem = new WinForms.ToolStripMenuItem("Open", null, (_, _) => onOpen())
             {
-                // Bold marks Open as the default action (also invoked by double-click).
-                Font = new Drawing.Font(menu.Font, Drawing.FontStyle.Bold),
+                Font = _openFont,
             };
             _newScribeItem = new WinForms.ToolStripMenuItem("New Scribe", null, (_, _) => onNewScribe());
             _activeItem = new WinForms.ToolStripMenuItem("Active", null, (_, _) => onToggleActive())
@@ -44,22 +47,22 @@ namespace CaptionScribe.Core.Shell
             var settingsItem = new WinForms.ToolStripMenuItem("Settings…", null, (_, _) => onSettings());
             var exitItem = new WinForms.ToolStripMenuItem("Exit", null, (_, _) => onExit());
 
-            menu.Items.Add(openItem);
-            menu.Items.Add(new WinForms.ToolStripSeparator());
-            menu.Items.Add(_newScribeItem);
-            menu.Items.Add(_activeItem);
-            menu.Items.Add(showRegionItem);
-            menu.Items.Add(setRegionItem);
-            menu.Items.Add(settingsItem);
-            menu.Items.Add(new WinForms.ToolStripSeparator());
-            menu.Items.Add(exitItem);
+            _menu.Items.Add(openItem);
+            _menu.Items.Add(new WinForms.ToolStripSeparator());
+            _menu.Items.Add(_newScribeItem);
+            _menu.Items.Add(_activeItem);
+            _menu.Items.Add(showRegionItem);
+            _menu.Items.Add(setRegionItem);
+            _menu.Items.Add(settingsItem);
+            _menu.Items.Add(new WinForms.ToolStripSeparator());
+            _menu.Items.Add(exitItem);
 
             _notifyIcon = new WinForms.NotifyIcon
             {
                 Icon = _inactiveIcon,
                 Visible = true,
                 Text = "Caption Scribe - idle",
-                ContextMenuStrip = menu,
+                ContextMenuStrip = _menu,
             };
             _notifyIcon.DoubleClick += (_, _) => onOpen();
         }
@@ -73,12 +76,15 @@ namespace CaptionScribe.Core.Shell
         }
 
         public void ShowBalloon(string message, WinForms.ToolTipIcon icon, string title = "Caption Scribe")
-            => _notifyIcon.ShowBalloonTip(3000, title, message, icon);
+            => _notifyIcon.ShowBalloonTip(BalloonDurationMs, title, message, icon);
 
         public void Dispose()
         {
             _notifyIcon.Visible = false;
+            _notifyIcon.ContextMenuStrip = null;
             _notifyIcon.Dispose();
+            _menu.Dispose();
+            _openFont.Dispose();
             _activeIcon.Dispose();
             _inactiveIcon.Dispose();
         }

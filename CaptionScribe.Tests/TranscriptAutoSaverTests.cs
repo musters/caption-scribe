@@ -166,7 +166,7 @@ namespace CaptionScribe.Tests
             File.WriteAllText(recent, "b");
             File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddDays(-40));
 
-            int removed = TranscriptAutoSaver.DeleteSavesOlderThan(_dir, TimeSpan.FromDays(30));
+            int removed = TranscriptAutoSaver.DeleteSavesOlderThan(_dir, TranscriptAutoSaver.DefaultRetention);
 
             Assert.Equal(1, removed);
             Assert.False(File.Exists(old));

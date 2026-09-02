@@ -2,6 +2,9 @@ namespace CaptionScribe.Models
 {
     public sealed class AppSettings
     {
+        public const int MinCaptureIntervalMs = 200;
+        public const int MaxCaptureIntervalMs = 60000;
+
         public CaptureRegion? Region { get; set; }
 
         /// <summary>How often to grab and OCR the region.</summary>

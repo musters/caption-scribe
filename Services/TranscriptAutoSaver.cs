@@ -15,6 +15,7 @@ namespace CaptionScribe.Services
     {
         // Lines within this many of the end may still be revised by later frames, so hold them back.
         private const int StableMargin = 20;
+        public static readonly TimeSpan DefaultRetention = TimeSpan.FromDays(30);
 
         private readonly Func<IReadOnlyList<string>> _lines;
         private readonly Func<string?> _configuredDir;
@@ -24,6 +25,7 @@ namespace CaptionScribe.Services
         private string _path;
         private int _appendedCount;
         private Timer? _timer;
+        private bool _disposed;
 
         public TranscriptAutoSaver(Func<IReadOnlyList<string>> lines, Func<string?> configuredDir, ILog log)
         {
@@ -42,9 +44,11 @@ namespace CaptionScribe.Services
         /// <summary>Starts (or restarts) the periodic append timer.</summary>
         public void Start(TimeSpan interval)
         {
+            WaitAndDropTimer();
             lock (_gate)
             {
-                _timer?.Dispose();
+                if (_disposed)
+                    return;
                 _timer = new Timer(_ => Flush(final: false), null, interval, interval);
             }
         }
@@ -52,11 +56,7 @@ namespace CaptionScribe.Services
         /// <summary>Stops the timer and flushes what is safely finalized.</summary>
         public void Stop()
         {
-            lock (_gate)
-            {
-                _timer?.Dispose();
-                _timer = null;
-            }
+            WaitAndDropTimer();
             Flush(final: false);
         }
 
@@ -76,39 +76,69 @@ namespace CaptionScribe.Services
         /// </summary>
         public void Flush(bool final)
         {
+            IReadOnlyList<string> lines;
+            int start;
+            int safe;
+            string path;
+            lock (_gate)
+            {
+                lines = _lines();
+                start = _appendedCount;
+                safe = Math.Max(0, lines.Count - (final ? 0 : StableMargin));
+                if (safe <= start)
+                    return;
+                path = _path;
+            }
+
+            var newLines = new List<string>(safe - start);
+            for (int i = start; i < safe; i++)
+                newLines.Add(lines[i]);
+
             try
             {
-                lock (_gate)
-                {
-                    var lines = _lines();
-                    int safe = Math.Max(0, lines.Count - (final ? 0 : StableMargin));
-                    if (safe <= _appendedCount)
-                        return;
-
-                    var newLines = new List<string>(safe - _appendedCount);
-                    for (int i = _appendedCount; i < safe; i++)
-                        newLines.Add(lines[i]);
-
-                    File.AppendAllLines(_path, newLines);
-                    _appendedCount = safe;
-                    if (_log.IsDebugEnabled)
-                        _log.Debug($"Autosaved {newLines.Count} line(s).");
-                }
+                File.AppendAllLines(path, newLines);
             }
             catch (Exception ex)
             {
                 _log.Warning("Autosave append failed: " + ex.Message);
+                return;
             }
+
+            lock (_gate)
+            {
+                if (_path == path && _appendedCount == start)
+                    _appendedCount = safe;
+            }
+            if (_log.IsDebugEnabled)
+                _log.Debug($"Autosaved {newLines.Count} line(s).");
         }
 
         public void Dispose()
         {
             lock (_gate)
             {
-                _timer?.Dispose();
+                if (_disposed)
+                    return;
+                _disposed = true;
+            }
+            WaitAndDropTimer();
+            Flush(final: true);
+        }
+
+        private void WaitAndDropTimer()
+        {
+            Timer? timer;
+            lock (_gate)
+            {
+                timer = _timer;
                 _timer = null;
             }
-            Flush(final: true);
+            if (timer is null)
+                return;
+            using var done = new ManualResetEvent(false);
+            timer.Dispose(done);
+            if (!done.WaitOne(TimeSpan.FromSeconds(5)))
+                _log.Warning("Timed out waiting for the autosave timer to finish.");
         }
 
         private string NewPath()
@@ -146,11 +176,15 @@ namespace CaptionScribe.Services
 
         /// <summary>The folder autosaves go to for a configured setting (pure path; no side effects).</summary>
         public static string DirectoryFor(string? configuredDir)
-            => string.IsNullOrWhiteSpace(configuredDir)
-                ? Path.Combine(
+        {
+            if (string.IsNullOrWhiteSpace(configuredDir))
+            {
+                return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "CaptionScribe", "autosave")
-                : configuredDir!.Trim();
+                    "CaptionScribe", "autosave");
+            }
+            return configuredDir.Trim();
+        }
 
         /// <summary>Deletes autosaved transcripts in the folder; returns how many were removed.</summary>
         public static int ClearDirectory(string? configuredDir)

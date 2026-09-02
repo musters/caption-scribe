@@ -18,7 +18,6 @@ namespace CaptionScribe.Views
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ResizeMode = ResizeMode.NoResize;
             ShowInTaskbar = false;
-            Topmost = true;
 
             var root = new StackPanel { Margin = new Thickness(16) };
 

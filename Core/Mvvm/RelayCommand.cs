@@ -15,7 +15,7 @@ namespace CaptionScribe.Core.Mvvm
             _canExecute = canExecute;
         }
 
-        // Re-queried by WPF on UI activity; call RaiseCanExecuteChanged for state that changes elsewhere.
+        // Re-queried by WPF on UI activity via CommandManager.InvalidateRequerySuggested.
         public event EventHandler? CanExecuteChanged
         {
             add => CommandManager.RequerySuggested += value;

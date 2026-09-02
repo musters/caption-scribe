@@ -114,7 +114,14 @@ namespace CaptionScribe.Views
         private void SetLayeredBitmap(Bitmap bitmap)
         {
             IntPtr screenDc = GetDC(IntPtr.Zero);
+            if (screenDc == IntPtr.Zero)
+                return;
             IntPtr memDc = CreateCompatibleDC(screenDc);
+            if (memDc == IntPtr.Zero)
+            {
+                ReleaseDC(IntPtr.Zero, screenDc);
+                return;
+            }
             IntPtr hBitmap = IntPtr.Zero;
             IntPtr oldBitmap = IntPtr.Zero;
             try

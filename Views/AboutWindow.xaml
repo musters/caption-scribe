@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Caption Scribe — About"
         Height="380" Width="520"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True">
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False">
     <StackPanel Margin="20">
         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="#5B2A91" TextAlignment="Left" LineStackingStrategy="BlockLineHeight" LineHeight="13" xml:space="preserve"><Run Text="   ____            _   _               ____            _ _          "/><LineBreak/><Run Text="  / ___|__ _ _ __ | |_(_) ___  _ __   / ___|  ___ _ __(_) |__   ___ "/><LineBreak/><Run Text=" | |   / _` | '_ \| __| |/ _ \| '_ \  \___ \ / __| '__| | '_ \ / _ \"/><LineBreak/><Run Text=" | |__| (_| | |_) | |_| | (_) | | | |  ___) | (__| |  | | |_) |  __/"/><LineBreak/><Run Text="  \____\__,_| .__/ \__|_|\___/|_| |_| |____/ \___|_|  |_|_.__/ \___|"/><LineBreak/><Run Text="            |_| "/></TextBlock>
         <TextBlock Text="by Musters" Margin="0,10,0,0" Foreground="#555" FontSize="12" />

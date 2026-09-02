@@ -5,16 +5,29 @@ namespace CaptionScribe.Services
     /// <summary>Levenshtein-based similarity ratio (0..1), used to fuzzy-match OCR'd names.</summary>
     internal static class TextSimilarity
     {
-        public static double Ratio(string a, string b)
+        public static bool Meets(string a, string b, double threshold)
         {
-            a = a.ToLowerInvariant();
-            b = b.ToLowerInvariant();
-            int distance = Levenshtein(a, b);
+            if (a.Equals(b, StringComparison.OrdinalIgnoreCase))
+                return true;
             int max = Math.Max(a.Length, b.Length);
-            return max == 0 ? 1.0 : 1.0 - (double)distance / max;
+            if (max == 0)
+                return true;
+            if ((max - Math.Min(a.Length, b.Length)) / (double)max > 1.0 - threshold)
+                return false;
+            return Ratio(a, b) >= threshold;
         }
 
-        private static int Levenshtein(string a, string b)
+        public static double Ratio(string a, string b)
+        {
+            int n = a.Length, m = b.Length;
+            int max = Math.Max(n, m);
+            if (max == 0)
+                return 1.0;
+            int distance = LevenshteinOrdinalIgnoreCase(a, b);
+            return 1.0 - (double)distance / max;
+        }
+
+        private static int LevenshteinOrdinalIgnoreCase(string a, string b)
         {
             int n = a.Length, m = b.Length;
             if (n == 0) return m;
@@ -29,7 +42,7 @@ namespace CaptionScribe.Services
                 curr[0] = i;
                 for (int j = 1; j <= m; j++)
                 {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    int cost = char.ToUpperInvariant(a[i - 1]) == char.ToUpperInvariant(b[j - 1]) ? 0 : 1;
                     curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
                 }
                 (prev, curr) = (curr, prev);

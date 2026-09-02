@@ -65,23 +65,25 @@ namespace CaptionScribe.Services
                     return section;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore a missing or invalid app config.
+                _log.Warning("Could not read appsettings.json; using defaults. " + ex.Message);
             }
             return null;
         }
 
-        public void Save(AppSettings settings)
+        public bool Save(AppSettings settings)
         {
             try
             {
                 var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_path, json);
+                return true;
             }
             catch (Exception ex)
             {
                 _log.Warning("Could not save settings. " + ex.Message);
+                return false;
             }
         }
     }

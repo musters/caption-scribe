@@ -58,11 +58,24 @@ namespace CaptionScribe.Services
                 {
                     if (!SpeakerHeuristics.LooksLikeName(line.Text) || !IsLikelyPersonName(line.Text))
                         continue;
-                    var avatar = CropAvatar(frame, line);
-                    if (avatar.Length == 0)   // no avatar beside the text => not a meeting participant
+                    var existing = Find(line.Text);
+                    if (existing is not null)
+                    {
+                        existing.NameVotes[line.Text] = existing.NameVotes.GetValueOrDefault(line.Text) + 1;
+                        if (existing.Avatar.Length == 0)
+                        {
+                            var filled = CropAvatar(frame, line);
+                            if (filled.Length > 0)
+                                existing.Avatar = filled;
+                        }
                         continue;
-                    var entry = FindOrAdd(line.Text, avatar);
-                    entry.NameVotes[line.Text] = entry.NameVotes.GetValueOrDefault(line.Text) + 1;
+                    }
+                    var avatar = CropAvatar(frame, line);
+                    if (avatar.Length == 0)
+                        continue;
+                    var entry = new Entry { Avatar = avatar };
+                    entry.NameVotes[line.Text] = 1;
+                    _entries.Add(entry);
                 }
             }
         }
@@ -76,15 +89,12 @@ namespace CaptionScribe.Services
                     .ToList();
         }
 
-        private Entry FindOrAdd(string name, byte[] avatar)
+        private Entry? Find(string name)
         {
             foreach (var e in _entries)
-                if (TextSimilarity.Ratio(e.BestName, name) >= NameMatchThreshold)
+                if (TextSimilarity.Meets(e.BestName, name, NameMatchThreshold))
                     return e;
-
-            var entry = new Entry { Avatar = avatar };
-            _entries.Add(entry);
-            return entry;
+            return null;
         }
 
         // Stricter than LooksLikeName: every word is a real 2+ letter, not-all-caps token (letters/'/-/. only).

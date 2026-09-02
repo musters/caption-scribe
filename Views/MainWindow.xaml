@@ -152,7 +152,8 @@
 
         <Grid Margin="8,0,8,4">
             <Border BorderBrush="#DDD" BorderThickness="1">
-                <TextBox x:Name="TranscriptBox" IsReadOnly="True" Text="{Binding TranscriptText, Mode=OneWay}"
+                <TextBox x:Name="TranscriptBox" IsReadOnly="True" IsUndoEnabled="False"
+                         Text="{Binding TranscriptText, Mode=OneWay}"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                          TextWrapping="Wrap" AcceptsReturn="True"
                          FontFamily="Consolas" FontSize="13" Padding="8" Background="#FAFAFA"

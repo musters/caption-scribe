@@ -11,6 +11,7 @@ namespace CaptionScribe.Views
     /// <summary>Region selector and highlight overlay implementation.</summary>
     public sealed class RegionService : IRegionService, IDisposable
     {
+        private const int HighlightDurationMs = 2500;
         private RegionHighlightForm? _overlay;
 
         public CaptureRegion? SelectRegion()
@@ -33,7 +34,7 @@ namespace CaptionScribe.Views
         public void HighlightRegion(CaptureRegion region)
         {
             _overlay?.Close();
-            _overlay = new RegionHighlightForm(region, 2500);
+            _overlay = new RegionHighlightForm(region, HighlightDurationMs);
             _overlay.Show();
         }
 

@@ -24,7 +24,9 @@ namespace CaptionScribe.Tests
 
             var snap = CaptureSettings.From(settings);
 
-            Assert.Same(settings.Region, snap.Region);
+            Assert.Equal(settings.Region, snap.Region);
+            settings.Region = new CaptureRegion(99, 2, 3, 4);
+            Assert.Equal(1, snap.Region?.X);
             Assert.Equal(1234, snap.CaptureIntervalMs);
             Assert.Equal(3, snap.UpscaleFactor);
             Assert.False(snap.EnhanceForOcr);
