@@ -181,7 +181,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0014 — JoinPending GetResult on the UI thread
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `Services/CaptureController.cs` `JoinPending` (Play-after-Pause, Dispose)

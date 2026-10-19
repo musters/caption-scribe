@@ -28,6 +28,7 @@ namespace CaptionScribe.Services
         private volatile CancellationTokenSource? _cts;
         private Task? _loop;
         private volatile bool _running;
+        private volatile bool _startQueued;
         private int _transcriptEpoch;
 
         // Set once when capture pauses because Teams isn't over the region; reset when it returns.
@@ -84,11 +85,53 @@ namespace CaptionScribe.Services
 
         public void Start()
         {
-            if (_running)
+            if (_running || _startQueued)
                 return;
 
-            JoinPending();
+            Task? loop;
+            lock (_lifecycle)
+            {
+                if (_running)
+                    return;
+                _running = false;
+                try { _cts?.Cancel(); } catch { /* already disposed */ }
+                loop = _loop;
+                _loop = null;
+            }
 
+            void AfterJoin()
+            {
+                ObserveLoop(loop);
+                lock (_lifecycle)
+                {
+                    if (_loop is null)
+                        _cts = null;
+                }
+                try { BeginCapture(); }
+                finally { _startQueued = false; }
+                CaptureStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            if (loop is null || loop.IsCompleted)
+            {
+                AfterJoin();
+                return;
+            }
+
+            _startQueued = true;
+            loop.ContinueWith(_ =>
+            {
+                try { AfterJoin(); }
+                catch (Exception ex)
+                {
+                    _startQueued = false;
+                    _log.Warning("Capture start after join failed: " + ex.Message);
+                }
+            }, TaskScheduler.Default);
+        }
+
+        private void BeginCapture()
+        {
             bool started = false;
             lock (_lifecycle)
             {
@@ -141,6 +184,15 @@ namespace CaptionScribe.Services
             }
         }
 
+        private void ObserveLoop(Task? loop)
+        {
+            if (loop is null)
+                return;
+            try { loop.GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { /* normal stop */ }
+            catch (Exception ex) { _log.Warning("Capture loop ended with an error: " + ex.Message); }
+        }
+
         private void JoinPending()
         {
             Task? loop;
@@ -151,12 +203,7 @@ namespace CaptionScribe.Services
                 loop = _loop;
                 _loop = null;
             }
-            if (loop is not null)
-            {
-                try { loop.GetAwaiter().GetResult(); }
-                catch (OperationCanceledException) { /* normal stop */ }
-                catch (Exception ex) { _log.Warning("Capture loop ended with an error: " + ex.Message); }
-            }
+            ObserveLoop(loop);
             lock (_lifecycle)
             {
                 if (_loop is null)
