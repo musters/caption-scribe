@@ -13,9 +13,12 @@ using WinRT;
 namespace CaptionScribe.Services
 {
     /// <summary>Wraps the built-in offline Windows OCR engine (Windows.Media.Ocr).</summary>
-    public sealed class OcrService
+    public sealed class OcrService : IDisposable
     {
         private readonly OcrEngine? _engine;
+        private SoftwareBitmap? _softwarePool;
+        private int _poolWidth;
+        private int _poolHeight;
 
         public OcrService()
         {
@@ -23,6 +26,12 @@ namespace CaptionScribe.Services
         }
 
         public bool IsAvailable => _engine is not null;
+
+        public void Dispose()
+        {
+            _softwarePool?.Dispose();
+            _softwarePool = null;
+        }
 
         public async Task<List<string>> RecognizeLinesAsync(Bitmap bitmap)
         {
@@ -41,7 +50,7 @@ namespace CaptionScribe.Services
                 return Array.Empty<RecognizedLine>();
 
             token.ThrowIfCancellationRequested();
-            using var softwareBitmap = ToSoftwareBitmap(bitmap);
+            var softwareBitmap = CopyToPooledSoftwareBitmap(bitmap);
             var operation = _engine.RecognizeAsync(softwareBitmap);
             OcrResult result;
             using (token.Register(() => { try { operation.Cancel(); } catch { /* already completed */ } }))
@@ -76,47 +85,67 @@ namespace CaptionScribe.Services
             return lines;
         }
 
+        private SoftwareBitmap CopyToPooledSoftwareBitmap(Bitmap bitmap)
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            if (_softwarePool is null || _poolWidth != width || _poolHeight != height)
+            {
+                _softwarePool?.Dispose();
+                _softwarePool = new SoftwareBitmap(BitmapPixelFormat.Bgra8, width, height, BitmapAlphaMode.Premultiplied);
+                _poolWidth = width;
+                _poolHeight = height;
+            }
+            CopyPixels(bitmap, _softwarePool);
+            return _softwarePool;
+        }
+
         // Copies the GDI bitmap's BGRA pixels straight into a WinRT SoftwareBitmap, skipping the
         // encode/decode round-trip (GDI Format32bppArgb is byte-identical to WinRT Bgra8).
         internal static unsafe SoftwareBitmap ToSoftwareBitmap(Bitmap bitmap)
         {
-            int width = bitmap.Width;
-            int height = bitmap.Height;
-            SoftwareBitmap? software = null;
+            var software = new SoftwareBitmap(BitmapPixelFormat.Bgra8, bitmap.Width, bitmap.Height, BitmapAlphaMode.Premultiplied);
             try
             {
-                software = new SoftwareBitmap(BitmapPixelFormat.Bgra8, width, height, BitmapAlphaMode.Premultiplied);
-                var data = bitmap.LockBits(
-                    new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-                try
-                {
-                    using var buffer = software.LockBuffer(BitmapBufferAccessMode.Write);
-                    using var reference = buffer.CreateReference();
-                    reference.As<IMemoryBufferByteAccess>().GetBuffer(out byte* dest, out uint capacity);
-
-                    var plane = buffer.GetPlaneDescription(0);
-                    int rowBytes = width * 4;
-                    var src = (byte*)data.Scan0;
-                    for (int y = 0; y < height; y++)
-                    {
-                        long destOffset = plane.StartIndex + (long)y * plane.Stride;
-                        Buffer.MemoryCopy(
-                            src + (long)y * data.Stride,
-                            dest + destOffset,
-                            capacity - destOffset,
-                            rowBytes);
-                    }
-                }
-                finally
-                {
-                    bitmap.UnlockBits(data);
-                }
+                CopyPixels(bitmap, software);
                 return software;
             }
             catch
             {
-                software?.Dispose();
+                software.Dispose();
                 throw;
+            }
+        }
+
+        private static unsafe void CopyPixels(Bitmap bitmap, SoftwareBitmap software)
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            var data = bitmap.LockBits(
+                new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            try
+            {
+                using var buffer = software.LockBuffer(BitmapBufferAccessMode.Write);
+                using var reference = buffer.CreateReference();
+                reference.As<IMemoryBufferByteAccess>().GetBuffer(out byte* dest, out uint capacity);
+
+                var plane = buffer.GetPlaneDescription(0);
+                const int bytesPerPixel = 4;
+                int rowBytes = width * bytesPerPixel;
+                var src = (byte*)data.Scan0;
+                for (int y = 0; y < height; y++)
+                {
+                    long destOffset = plane.StartIndex + (long)y * plane.Stride;
+                    Buffer.MemoryCopy(
+                        src + (long)y * data.Stride,
+                        dest + destOffset,
+                        capacity - destOffset,
+                        rowBytes);
+                }
+            }
+            finally
+            {
+                bitmap.UnlockBits(data);
             }
         }
 

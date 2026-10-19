@@ -71,7 +71,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0004 — New SoftwareBitmap (full copy) every OCR
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `Services/OcrService.cs` vs pooled GDI in `ScreenCaptureService.cs`

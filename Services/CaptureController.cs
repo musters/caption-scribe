@@ -497,6 +497,7 @@ namespace CaptionScribe.Services
             }
             JoinPending();
             _autoSaver.Dispose();
+            _ocr.Dispose();
             _capture.Dispose();
         }
     }
