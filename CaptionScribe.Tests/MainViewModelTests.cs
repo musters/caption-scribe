@@ -178,7 +178,7 @@ namespace CaptionScribe.Tests
         // ---- copy / about / diagnostics / highlight ----
 
         [Fact]
-        public void Copy_PutsTranscriptTextOnClipboard()
+        public async Task Copy_PutsTranscriptTextOnClipboard()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptText = "hello world";
@@ -186,6 +186,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.CopyCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal("hello world", ctx.Dialogs.LastClipboardText);
         }

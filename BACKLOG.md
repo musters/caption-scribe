@@ -104,7 +104,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0007 — Copy builds the full transcript on the UI thread under the aggregator lock
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `ViewModels/MainViewModel.cs` `Copy()`, `TranscriptAggregator.GetText()`

@@ -63,7 +63,7 @@ namespace CaptionScribe.ViewModels
             NewScribeCommand = new RelayCommand(NewScribe, () => !IsCapturing && !IsBusy);
             SaveCommand = new RelayCommand(Save, () => HasContent && !IsBusy);
             ClearCommand = new RelayCommand(Clear, () => HasContent && !IsBusy);
-            CopyCommand = new RelayCommand(Copy, () => HasContent && !IsBusy);
+            CopyCommand = new RelayCommand(() => _busyWork = CopyAsync(), () => HasContent && !IsBusy);
             PlayPauseCommand = new RelayCommand(ToggleActive, () => !IsBusy);
             StopCommand = new RelayCommand(StopAndSave, () => IsCapturing && !IsBusy);
             HighlightCommand = new RelayCommand(Highlight, () => !IsBusy);
@@ -229,15 +229,25 @@ namespace CaptionScribe.ViewModels
             _participants.Reset();
         }
 
-        private void Copy()
+        private async Task CopyAsync()
         {
-            if (_isBusy)
+            if (Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
                 return;
-            var text = _controller.GetTranscriptText();
-            if (string.IsNullOrEmpty(text))
-                return;
-            if (!_dialogs.CopyToClipboard(text))
-                _dialogs.Info("Copy", "Could not copy the transcript to the clipboard.");
+            SetBusy(true, "Copying transcript…");
+            try
+            {
+                string text = await Task.Run(() => _controller.GetTranscriptText()).ConfigureAwait(true);
+                if (string.IsNullOrEmpty(text))
+                    return;
+                if (!_dialogs.CopyToClipboard(text))
+                    _dialogs.Info("Copy", "Could not copy the transcript to the clipboard.");
+            }
+            finally
+            {
+                SetBusy(false);
+                Refresh();
+                Interlocked.Exchange(ref _saveGate, 0);
+            }
         }
 
         private void Save() => _busyWork = SaveAsync();
