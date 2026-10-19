@@ -46,7 +46,7 @@
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Menus</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
                     <ListItem><Paragraph><Bold>File</Bold> — New Scribe, Save Scribe, Active (play/pause), Exit.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output (off shows the last 200 lines; the full text is still saved), Timestamps.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, and the Settings dialog.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>About</Bold> — Help and About.</Paragraph></ListItem>
                 </List>

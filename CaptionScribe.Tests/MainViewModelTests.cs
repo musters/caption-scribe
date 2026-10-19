@@ -307,6 +307,20 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void TranscriptText_WhileCapturing_AlwaysUsesLiveTail_EvenIfShowAllOutput()
+        {
+            var ctx = new Ctx();
+            ctx.Settings.ShowAllOutput = true;
+            ctx.Controller.IsRunning = true;
+            ctx.Controller.TranscriptText = "body";
+            ctx.Controller.TranscriptLineCount = 10_001;
+            var vm = ctx.Build();
+
+            Assert.Contains("showing the last 200 lines", vm.TranscriptText);
+            Assert.DoesNotContain("10000", vm.TranscriptText);
+        }
+
+        [Fact]
         public void RegionText_ReflectsWhetherARegionIsSet()
         {
             var ctx = new Ctx();

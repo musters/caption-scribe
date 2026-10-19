@@ -49,7 +49,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0002 — Show All Output rebuilds a 10k-line TextBox every OCR
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `ViewModels/MainViewModel.cs` (`AllOutputLineCount`, `BuildDisplayText`, `Refresh`), `Views/MainWindow.xaml` / `MainWindow.xaml.cs`

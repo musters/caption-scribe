@@ -14,8 +14,9 @@ namespace CaptionScribe.ViewModels
     {
         private const int TailLineCount = 200;
 
-        // Show All Output cap (~10k lines ≈ 5h dense / ~8h at the measured rate). Full transcript is still saved/copied.
+        // Show All Output cap when idle/paused (~10k lines ≈ 5h dense / ~8h at the measured rate). Live capture always uses TailLineCount.
         private const int AllOutputLineCount = 10_000;
+        private const int MinUiRefreshMs = 250;
 
         private readonly ICaptureController _controller;
         private readonly AppSettings _settings;
@@ -39,6 +40,7 @@ namespace CaptionScribe.ViewModels
         private string _busyMessage = "";
         private int _saveGate;
         private Task _busyWork = Task.CompletedTask;
+        private long _lastUiRefreshMs;
 
         /// <summary>Raised when the user asks to exit; the shell (App) performs the shutdown.</summary>
         public event EventHandler? ExitRequested;
@@ -413,6 +415,13 @@ namespace CaptionScribe.ViewModels
             _dispatcher.InvokeAsync(() =>
             {
                 Interlocked.Exchange(ref _refreshQueued, 0);
+                if (_controller.IsRunning)
+                {
+                    long now = Environment.TickCount64;
+                    if (now - _lastUiRefreshMs < MinUiRefreshMs)
+                        return;
+                    _lastUiRefreshMs = now;
+                }
                 Refresh();
             });
         }
@@ -450,8 +459,8 @@ namespace CaptionScribe.ViewModels
 
         private string BuildDisplayText()
         {
-            // Show All Output raises the on-screen cap; the full transcript is always saved/copied in full.
-            int cap = _settings.ShowAllOutput ? AllOutputLineCount : TailLineCount;
+            // Live capture always shows the last 200 lines. Show All Output is a paused/idle snapshot (up to 10k).
+            int cap = (!_controller.IsRunning && _settings.ShowAllOutput) ? AllOutputLineCount : TailLineCount;
             bool timestamps = _settings.ShowTimestamps;
 
             string tail = timestamps
