@@ -21,7 +21,7 @@ _(none yet — product ideas such as audio live in `docs/ideas/`)_
 
 ### DEFER-0001 — Auto-pause: Pause can act like Play
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `Services/CaptureController.cs` (~214, 252), `ViewModels/MainViewModel.cs` (~156)

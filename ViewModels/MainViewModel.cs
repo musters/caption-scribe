@@ -160,7 +160,12 @@ namespace CaptionScribe.ViewModels
         {
             if (_isBusy)
                 return;
-            if (!IsCapturing)
+            if (IsCapturing)
+            {
+                _controller.Stop();
+                _participants.Stop();
+            }
+            else
             {
                 if (_settings.Region is null)
                 {
@@ -170,11 +175,6 @@ namespace CaptionScribe.ViewModels
                 _controller.Start();
                 if (_settings.EnableParticipantCapture)
                     _participants.Start();
-            }
-            else
-            {
-                _controller.Stop();
-                _participants.Stop();
             }
             Refresh();
         }

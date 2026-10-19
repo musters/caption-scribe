@@ -53,7 +53,11 @@ Or open `CaptionScribe.sln` in Visual Studio 2022 and press **F5**.
 4. Use **Save** (or **Stop**) to write a file; you'll be offered a cleanup pass and asked for a meeting title.
 
 **Tips for accuracy:** increase the caption font size in the source app, draw the region snugly around just
-the caption lines, and raise the **Upscale factor** (Settings) if lines are being missed.
+the caption lines, and raise the **Upscale factor** (Settings) if lines are being missed. Very large regions
+are scaled down before OCR. If capture pauses after repeated errors, check the region and press Play.
+
+While capturing, the window shows the last 200 lines. **Show All Output** (when idle or paused) shows up to
+10,000 lines; the full transcript is always saved.
 
 ## Settings
 

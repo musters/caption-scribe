@@ -279,8 +279,9 @@ namespace CaptionScribe.Services
                 // Only clear state if a newer Start() has not replaced this loop.
                 if (ReferenceEquals(_cts, cts))
                 {
-                    _running = false;
-                    _capture.ReleaseBuffers();   // free pooled frames between captures
+                    if (!autoPaused)
+                        _running = false;
+                    _capture.ReleaseBuffers();
                 }
                 cts.Dispose();
             }
@@ -317,7 +318,7 @@ namespace CaptionScribe.Services
         // Runs after the loop exits from repeated failures: stop autosave and let the UI reflect the pause.
         private void AutoPause()
         {
-            _autoSaver.Stop();
+            Stop();
             _log.Warning($"Capture auto-paused after {MaxConsecutiveCaptureFailures} consecutive failures.");
             CaptureError?.Invoke(this,
                 "Capture paused after repeated errors. Check the capture region, then press Play to resume.");

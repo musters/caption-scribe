@@ -46,8 +46,8 @@
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Menus</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
                     <ListItem><Paragraph><Bold>File</Bold> — New Scribe, Save Scribe, Active (play/pause), Exit.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, and the Settings dialog.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output, Timestamps.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, Capture Participants (experimental), and the Settings dialog.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>About</Bold> — Help and About.</Paragraph></ListItem>
                 </List>
 
@@ -57,6 +57,7 @@
                     <ListItem><Paragraph><Bold>Capture interval</Bold> and <Bold>Upscale factor</Bold> — trade speed for accuracy on small text.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Enhance image for OCR</Bold> — grayscale and contrast before recognition; best left on.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Show timestamps</Bold> / <Bold>per-turn</Bold> — prefix lines with the time; per-turn stamps only at each speaker change.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Show all output when idle</Bold> — while capturing, the window always shows the last 200 lines; when paused or idle, this shows up to 10,000. The full transcript is still saved.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Autosave</Bold> and <Bold>Default save folder</Bold> — where in-progress and final transcripts are written.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Only capture while Teams is in front</Bold> — pauses OCR when Teams isn't over the region, so trailing text isn't recorded after a meeting ends.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Bring Teams to front while capturing</Bold> — experimental; briefly focuses Teams for each grab.</Paragraph></ListItem>
@@ -66,8 +67,9 @@
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Tips for better accuracy</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
                     <ListItem><Paragraph>Increase the caption text size in Teams.</Paragraph></ListItem>
-                    <ListItem><Paragraph>Draw the region snugly around just the caption lines.</Paragraph></ListItem>
+                    <ListItem><Paragraph>Draw the region snugly around just the caption lines. Very large regions are scaled down before OCR so capture stays responsive.</Paragraph></ListItem>
                     <ListItem><Paragraph>Lower the capture interval or raise the upscale factor if lines are missed.</Paragraph></ListItem>
+                    <ListItem><Paragraph>If capture pauses after repeated errors, check the region, then press Play.</Paragraph></ListItem>
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Files and privacy</Paragraph>
