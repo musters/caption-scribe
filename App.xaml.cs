@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using CaptionScribe.Core.Interop;
@@ -220,14 +221,14 @@ namespace CaptionScribe
 
                 _tray = new TrayIcon(
                     onOpen: ShowMainWindow,
-                    onNewScribe: () => _viewModel.NewScribeCommand.Execute(null),
-                    onPlay: () => _viewModel.PlayPauseCommand.Execute(null),
-                    onPause: () => _viewModel.PlayPauseCommand.Execute(null),
-                    onStop: () => _viewModel.StopCommand.Execute(null),
-                    onShowRegion: () => _viewModel.HighlightCommand.Execute(null),
-                    onSetRegion: () => _viewModel.SelectRegionCommand.Execute(null),
-                    onSettings: () => _viewModel.SettingsCommand.Execute(null),
-                    onExit: ExitApp);
+                    onNewScribe: () => RunTray(_viewModel.NewScribeCommand),
+                    onPlay: () => RunTray(_viewModel.PlayPauseCommand),
+                    onPause: () => RunTray(_viewModel.PlayPauseCommand),
+                    onStop: () => RunTray(_viewModel.StopCommand),
+                    onShowRegion: () => RunTray(_viewModel.HighlightCommand),
+                    onSetRegion: () => RunTray(_viewModel.SelectRegionCommand),
+                    onSettings: () => RunTray(_viewModel.SettingsCommand),
+                    onExit: () => RunTray(_viewModel.ExitCommand));
                 _tray.SetActive(_viewModel.IsCapturing);
 
                 StartShowWindowListener();
@@ -267,6 +268,12 @@ namespace CaptionScribe
             _regionService?.Dispose();
             _controller?.Dispose();
             _tray?.Dispose();
+        }
+
+        private static void RunTray(ICommand command)
+        {
+            if (command.CanExecute(null))
+                command.Execute(null);
         }
 
         private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)

@@ -159,7 +159,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0012 — Save busy/disable starts after the save dialogs
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `ViewModels/MainViewModel.cs` `SaveAsync` / `StopAndSaveAsync`, tray in `App.xaml.cs` / `TrayIcon.cs`

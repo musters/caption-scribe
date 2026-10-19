@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -192,7 +193,7 @@ namespace CaptionScribe.ViewModels
             Refresh();
             if (!HasContent)
                 return;
-            if (await SaveAsync())
+            if (await SaveAsync() && !_controller.IsRunning)
             {
                 _controller.ClearTranscript();
                 _participants.Reset();
@@ -246,6 +247,7 @@ namespace CaptionScribe.ViewModels
             if (Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
                 return false;
 
+            SetBusy(true, "Saving transcript…");
             try
             {
                 var cleanup = _dialogs.AskSaveCleanup();
@@ -265,49 +267,45 @@ namespace CaptionScribe.ViewModels
                 if (path is null)
                     return false;
 
-                SetBusy(true, "Saving transcript…");
+                var timed = _controller.GetTimedTranscript();
+                var plain = _controller.GetTranscriptText();
+                bool timestamps = _settings.ShowTimestamps;
+                bool perTurn = _settings.TimestampsPerTurn;
+                var cleanupMode = cleanup.Value;
                 try
                 {
-                    bool timestamps = _settings.ShowTimestamps;
-                    bool perTurn = _settings.TimestampsPerTurn;
-                    var cleanupMode = cleanup.Value;
-                    try
+                    await Task.Run(() =>
                     {
-                        await Task.Run(() =>
-                        {
-                            string text = BuildTranscriptToSave(cleanupMode, timestamps, perTurn);
-                            _fileWriter.Write(path, text);
-                        }).ConfigureAwait(true);
-                    }
-                    catch (Exception ex)
-                    {
-                        _dialogs.Info("Save failed", ex.Message);
-                        return false;
-                    }
-
-                    await WriteParticipantsImageAsync(path, title.Trim(), started).ConfigureAwait(true);
-                    return true;
+                        string text = BuildTranscriptToSave(cleanupMode, timestamps, perTurn, timed, plain);
+                        _fileWriter.Write(path, text);
+                    }).ConfigureAwait(true);
                 }
-                finally
+                catch (Exception ex)
                 {
-                    SetBusy(false);
-                    Refresh();
+                    _dialogs.Info("Save failed", ex.Message);
+                    return false;
                 }
+
+                await WriteParticipantsImageAsync(path, title.Trim(), started).ConfigureAwait(true);
+                return true;
             }
             finally
             {
+                SetBusy(false);
+                Refresh();
                 Interlocked.Exchange(ref _saveGate, 0);
             }
         }
 
         // Renders the transcript for saving: cleaned-up, timestamped, or plain per the current settings.
-        private string BuildTranscriptToSave(SaveCleanup cleanup, bool timestamps, bool perTurn)
+        private static string BuildTranscriptToSave(SaveCleanup cleanup, bool timestamps, bool perTurn,
+            IReadOnlyList<TimedLine> timed, string plain)
         {
             if (cleanup == SaveCleanup.Clean)
-                return TranscriptCleaner.Clean(_controller.GetTimedTranscript(), timestamps, perTurn);
+                return TranscriptCleaner.Clean(timed, timestamps, perTurn);
             if (timestamps)
-                return TranscriptFormatter.Format(_controller.GetTimedTranscript(), true, perTurn);
-            return _controller.GetTranscriptText();
+                return TranscriptFormatter.Format(timed, true, perTurn);
+            return plain;
         }
 
         private async Task WriteParticipantsImageAsync(string transcriptPath, string meetingTitle, DateTime started)
