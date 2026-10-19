@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
@@ -225,11 +226,13 @@ namespace CaptionScribe.Services
                     if (!captureImmediately && !await SafeWaitAsync(timer, token))
                         break;
                     captureImmediately = false;
+                    var cycle = Stopwatch.StartNew();
                     do
                     {
                         if (token.IsCancellationRequested)
                             break;
 
+                        cycle.Restart();
                         try
                         {
                             var s = _snapshot;
@@ -256,6 +259,11 @@ namespace CaptionScribe.Services
 
                         if (Math.Max(AppSettings.MinCaptureIntervalMs, _snapshot.CaptureIntervalMs) != ms)
                             break;
+                        if (cycle.ElapsedMilliseconds >= ms)
+                        {
+                            captureImmediately = false;
+                            break;
+                        }
                     }
                     while (!autoPaused && await SafeWaitAsync(timer, token));
 

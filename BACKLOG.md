@@ -82,7 +82,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0005 — No backpressure when OCR exceeds the capture interval
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `Services/CaptureController.cs` loop, `AppSettings.MinCaptureIntervalMs` (200)
