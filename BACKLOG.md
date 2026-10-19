@@ -214,7 +214,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0017 — GrabRawAsync swallows cancel then still captures
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `Services/CaptureController.cs` `GrabRawAsync` (~283)

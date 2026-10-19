@@ -343,14 +343,11 @@ namespace CaptionScribe.Services
 
             IntPtr previous = Win32.GetForegroundWindowHandle();
             bool activated = Win32.TryActivate(teams);
-            if (activated && s.FocusSettleMs > 0)
-            {
-                try { await Task.Delay(s.FocusSettleMs, token); }
-                catch (OperationCanceledException) { }
-            }
-
             try
             {
+                if (activated && s.FocusSettleMs > 0)
+                    await Task.Delay(s.FocusSettleMs, token);
+                token.ThrowIfCancellationRequested();
                 return _capture.CaptureRaw(region);
             }
             finally
