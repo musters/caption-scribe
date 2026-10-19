@@ -137,7 +137,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0010 — Default 200-line TextBox is still a full document swap
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** LOW
 
 **Where:** `MainViewModel.BuildDisplayText`, `MainWindow` scroll-to-end
@@ -203,7 +203,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0016 — ParticipantImageWriter leaks GDI Regions
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `Services/ParticipantImageWriter.cs` (~66)

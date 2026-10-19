@@ -63,10 +63,15 @@ namespace CaptionScribe.Services
             {
                 using var ms = new MemoryStream(png);
                 using var img = Image.FromStream(ms);
-                var saved = g.Clip;
                 g.SetClip(circle);
-                g.DrawImage(img, new Rectangle(x, y, size, size));
-                g.Clip = saved;
+                try
+                {
+                    g.DrawImage(img, new Rectangle(x, y, size, size));
+                }
+                finally
+                {
+                    g.ResetClip();
+                }
             }
             catch { /* skip a bad avatar crop */ }
         }
