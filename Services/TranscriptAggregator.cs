@@ -28,6 +28,8 @@ namespace CaptionScribe.Services
 
         // Short lines repeat too naturally to dedup safely; only check lines with at least this many words.
         private const int MinDedupWordCount = 3;
+        private const int MaxSnapshotLines = 32;
+        private const int MaxLcsCells = 1200;
 
         public TranscriptAggregator(double similarityThreshold)
         {
@@ -49,6 +51,8 @@ namespace CaptionScribe.Services
                 .ToList();
             if (snapshot.Count == 0)
                 return;
+            if (snapshot.Count > MaxSnapshotLines)
+                snapshot.RemoveRange(0, snapshot.Count - MaxSnapshotLines);
 
             lock (_gate)
             {
@@ -154,6 +158,9 @@ namespace CaptionScribe.Services
         {
             int a = _lines.Count - t0;
             int b = snapshot.Count;
+            if ((long)a * b > MaxLcsCells)
+                return GreedyPairs(t0, snapshot);
+
             var dp = new int[a + 1, b + 1];
             for (int i = 1; i <= a; i++)
                 for (int j = 1; j <= b; j++)
@@ -178,6 +185,28 @@ namespace CaptionScribe.Services
                 {
                     j--;
                 }
+            }
+            pairs.Reverse();
+            return pairs;
+        }
+
+        private List<(int Committed, int Snapshot)> GreedyPairs(int t0, List<string> snapshot)
+        {
+            var pairs = new List<(int, int)>();
+            int i = _lines.Count - 1;
+            int j = snapshot.Count - 1;
+            while (i >= t0 && j >= 0)
+            {
+                if (LinesRelated(_lines[i], snapshot[j]))
+                {
+                    pairs.Add((i, j));
+                    i--;
+                    j--;
+                }
+                else if (j > 0)
+                    j--;
+                else
+                    i--;
             }
             pairs.Reverse();
             return pairs;

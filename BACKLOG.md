@@ -115,7 +115,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0008 — Aggregator lock is held across LCS / Levenshtein
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `Services/TranscriptAggregator.cs` `AddSnapshot` / `Merge`
