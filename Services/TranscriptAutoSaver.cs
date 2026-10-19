@@ -17,7 +17,7 @@ namespace CaptionScribe.Services
         private const int StableMargin = 20;
         public static readonly TimeSpan DefaultRetention = TimeSpan.FromDays(30);
 
-        private readonly Func<IReadOnlyList<string>> _lines;
+        private readonly Func<int, IReadOnlyList<string>> _linesFrom;
         private readonly Func<string?> _configuredDir;
         private readonly ILog _log;
         private readonly object _gate = new();
@@ -27,9 +27,9 @@ namespace CaptionScribe.Services
         private Timer? _timer;
         private bool _disposed;
 
-        public TranscriptAutoSaver(Func<IReadOnlyList<string>> lines, Func<string?> configuredDir, ILog log)
+        public TranscriptAutoSaver(Func<int, IReadOnlyList<string>> linesFrom, Func<string?> configuredDir, ILog log)
         {
-            _lines = lines;
+            _linesFrom = linesFrom;
             _configuredDir = configuredDir;
             _log = log;
             _path = NewPath();
@@ -78,15 +78,15 @@ namespace CaptionScribe.Services
         {
             lock (_gate)
             {
-                var lines = _lines();
-                int start = _appendedCount;
-                int safe = Math.Max(0, lines.Count - (final ? 0 : StableMargin));
-                if (safe <= start)
+                var tail = _linesFrom(_appendedCount);
+                int holdBack = final ? 0 : StableMargin;
+                int take = tail.Count - holdBack;
+                if (take <= 0)
                     return;
 
-                var newLines = new List<string>(safe - start);
-                for (int i = start; i < safe; i++)
-                    newLines.Add(lines[i]);
+                var newLines = new List<string>(take);
+                for (int i = 0; i < take; i++)
+                    newLines.Add(tail[i]);
 
                 try
                 {
@@ -98,7 +98,7 @@ namespace CaptionScribe.Services
                     return;
                 }
 
-                _appendedCount = safe;
+                _appendedCount += take;
                 if (_log.IsDebugEnabled)
                     _log.Debug($"Autosaved {newLines.Count} line(s).");
             }

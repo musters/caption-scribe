@@ -16,7 +16,10 @@ namespace CaptionScribe.Tests
         private readonly List<string> _lines = new();
 
         private TranscriptAutoSaver NewSaver() =>
-            new(() => _lines.ToList(), () => _dir, NullLog.Instance);
+            new(start => start >= _lines.Count
+                    ? Array.Empty<string>()
+                    : _lines.GetRange(start, _lines.Count - start),
+                () => _dir, NullLog.Instance);
 
         [Fact]
         public void NonFinalFlush_HoldsBackTheStableMargin()

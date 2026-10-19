@@ -231,6 +231,21 @@ namespace CaptionScribe.Services
                 return _lines.ToList();
         }
 
+        public IReadOnlyList<string> GetLinesFrom(int start)
+        {
+            lock (_gate)
+            {
+                if (start < 0)
+                    start = 0;
+                if (start >= _lines.Count)
+                    return Array.Empty<string>();
+                int n = _lines.Count - start;
+                var copy = new string[n];
+                _lines.CopyTo(start, copy, 0, n);
+                return copy;
+            }
+        }
+
         public IReadOnlyList<TimedLine> GetTimedLines()
         {
             lock (_gate)

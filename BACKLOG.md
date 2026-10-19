@@ -126,7 +126,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0009 — Autosave copies the entire line list every flush
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** LOW
 
 **Where:** `Services/TranscriptAutoSaver.cs` `Flush`, `TranscriptAggregator.GetLines`

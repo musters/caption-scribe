@@ -66,7 +66,7 @@ namespace CaptionScribe.Services
             _snapshot = CaptureSettings.From(settings);
             _aggregator = new TranscriptAggregator(settings.SimilarityThreshold);
             _autoSaver = new TranscriptAutoSaver(
-                () => _aggregator.GetLines(),
+                start => _aggregator.GetLinesFrom(start),
                 () => _settings.AutoSaveDirectory,
                 log);
         }
