@@ -28,6 +28,19 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void SnapshotLongerThanCap_KeepsTheTail()
+        {
+            var lines = new string[40];
+            for (int i = 0; i < lines.Length; i++)
+                lines[i] = $"line-{i:00} unique words here";
+            var agg = WithSnapshots(lines);
+            var got = agg.GetLines();
+            Assert.Equal(32, got.Count);
+            Assert.Equal("line-08 unique words here", got[0]);
+            Assert.Equal("line-39 unique words here", got[^1]);
+        }
+
+        [Fact]
         public void FirstSnapshot_IsAppended()
         {
             var agg = WithSnapshots(new[] { "one", "two" });
@@ -177,6 +190,15 @@ namespace CaptionScribe.Tests
             agg.AddSnapshot(new[] { "hello wor1d" });   // one-char OCR wobble
 
             Assert.Single(agg.GetLines());              // merged under the looser threshold
+        }
+
+        [Fact]
+        public void GetLinesFrom_CopiesFromStartWithoutThePrefix()
+        {
+            var agg = WithSnapshots(new[] { "a" }, new[] { "b" }, new[] { "c" });
+            Assert.Equal(new[] { "b", "c" }, agg.GetLinesFrom(1));
+            Assert.Empty(agg.GetLinesFrom(3));
+            Assert.Equal(new[] { "a", "b", "c" }, agg.GetLinesFrom(0));
         }
 
         [Fact]

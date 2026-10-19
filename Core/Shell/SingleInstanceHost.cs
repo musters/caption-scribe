@@ -11,16 +11,26 @@ namespace CaptionScribe.Core.Shell
         private const string ShowWindowEventName = @"Local\CaptionScribe.ShowWindow";
         private const int UnregisterWaitMs = 500;
 
+        private readonly string _mutexName;
+        private readonly string _eventName;
         private Mutex? _mutex;
         private EventWaitHandle? _showEvent;
         private RegisteredWaitHandle? _wait;
         private volatile bool _exiting;
         private bool _disposed;
 
+        public SingleInstanceHost() : this(MutexName, ShowWindowEventName) { }
+
+        internal SingleInstanceHost(string mutexName, string eventName)
+        {
+            _mutexName = mutexName;
+            _eventName = eventName;
+        }
+
         public bool TryClaim(bool notifyExisting)
         {
-            _mutex = new Mutex(true, MutexName, out bool createdNew);
-            _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowWindowEventName);
+            _mutex = new Mutex(true, _mutexName, out bool createdNew);
+            _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, _eventName);
             if (createdNew)
                 return true;
 

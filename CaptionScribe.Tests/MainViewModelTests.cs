@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using CaptionScribe.Models;
 using CaptionScribe.ViewModels;
@@ -192,6 +193,18 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void Copy_WhenTranscriptEmpty_DoesNotTouchClipboard()
+        {
+            var ctx = new Ctx();
+            ctx.Controller.TranscriptLineCount = 0;
+            ctx.Controller.TranscriptText = "";
+            var vm = ctx.Build();
+
+            Assert.False(vm.CopyCommand.CanExecute(null));
+            Assert.Null(ctx.Dialogs.LastClipboardText);
+        }
+
+        [Fact]
         public void About_PassesTheAutoSavePath()
         {
             var ctx = new Ctx();
@@ -241,6 +254,37 @@ namespace CaptionScribe.Tests
         }
 
         // ---- settings ----
+
+        [Fact]
+        public async Task Stop_WhenIdleWithNoContent_DoesNotSave()
+        {
+            var ctx = new Ctx();
+            var vm = ctx.Build();
+
+            vm.StopCommand.Execute(null);
+            await AwaitBusy(vm);
+
+            Assert.Equal(0, ctx.Files.Writes);
+        }
+
+        [Fact]
+        public void ShowAllOutput_Setter_Persists()
+        {
+            var ctx = new Ctx();
+            var vm = ctx.Build();
+            vm.ShowAllOutput = true;
+            Assert.True(ctx.Settings.ShowAllOutput);
+            Assert.True(ctx.SettingsService.SaveCalls >= 1);
+        }
+
+        [Fact]
+        public void HelpCommand_ShowsHelp()
+        {
+            var ctx = new Ctx();
+            var vm = ctx.Build();
+            vm.HelpCommand.Execute(null);
+            Assert.Equal(1, ctx.Dialogs.ShowHelpCalls);
+        }
 
         [Fact]
         public void OpenSettings_AppliesAndSaves_WhenConfirmed()
@@ -598,6 +642,33 @@ namespace CaptionScribe.Tests
 
             vm.EnableParticipantCapture = false;
             Assert.Equal(1, ctx.Participants.StopCalls);
+        }
+
+        [Fact]
+        public async Task Save_WhileBusy_BlocksASecondSave_AndDisablesCommands()
+        {
+            var ctx = new Ctx();
+            ctx.Controller.TranscriptLineCount = 2;
+            ctx.Dialogs.SaveFilePathResult = @"C:\out\meeting.txt";
+            var entered = new ManualResetEventSlim(false);
+            var release = new ManualResetEventSlim(false);
+            ctx.Files.Entered = entered;
+            ctx.Files.BlockUntil = release;
+            var vm = ctx.Build();
+
+            vm.SaveCommand.Execute(null);
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(vm.IsBusy);
+            Assert.False(vm.SaveCommand.CanExecute(null));
+            Assert.False(vm.CopyCommand.CanExecute(null));
+            Assert.False(vm.PlayPauseCommand.CanExecute(null));
+
+            vm.SaveCommand.Execute(null);
+            release.Set();
+            await AwaitBusy(vm);
+
+            Assert.False(vm.IsBusy);
+            Assert.Equal(1, ctx.Files.Writes);
         }
     }
 }

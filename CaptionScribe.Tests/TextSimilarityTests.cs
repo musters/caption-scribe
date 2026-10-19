@@ -33,5 +33,13 @@ namespace CaptionScribe.Tests
         [Fact]
         public void OneEmpty_ScoreZero() =>
             Assert.Equal(0.0, TextSimilarity.Ratio("", "abc"), 3);
+
+        [Fact]
+        public void Meets_Identical_IsTrue() =>
+            Assert.True(TextSimilarity.Meets("Hello", "hello", 0.9));
+
+        [Fact]
+        public void Meets_LengthGapTooLarge_IsFalse() =>
+            Assert.False(TextSimilarity.Meets("ab", "abcdefghij", 0.9));
     }
 }

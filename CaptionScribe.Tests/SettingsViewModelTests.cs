@@ -74,6 +74,19 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void BrowseAutoSave_SetsDirectory()
+        {
+            var dialogs = new FakeDialogService { FolderToReturn = @"C:\autosaves" };
+            var vm = new SettingsViewModel(new AppSettings(), dialogs, () => null, new FakeStartupLaunchService(),
+                NullLog.Instance);
+
+            vm.BrowseAutoSaveCommand.Execute(null);
+
+            Assert.Equal(@"C:\autosaves", vm.AutoSaveDir);
+            Assert.True(vm.SaveCommand.CanExecute(null));
+        }
+
+        [Fact]
         public void DetectTeamsTitle_WhenFound_SetsHint_AndEnablesSave()
         {
             var vm = New(detectTeamsTitle: () => "Sprint Demo | Microsoft Teams");

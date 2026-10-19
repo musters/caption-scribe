@@ -84,6 +84,15 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void Start_AfterDispose_DoesNotThrow()
+        {
+            var saver = NewSaver();
+            saver.Dispose();
+            saver.Start(TimeSpan.FromMinutes(1));
+            saver.Flush(final: true);
+        }
+
+        [Fact]
         public void Flush_WithNothingNew_DoesNotThrow_OrCreateContent()
         {
             var saver = NewSaver();

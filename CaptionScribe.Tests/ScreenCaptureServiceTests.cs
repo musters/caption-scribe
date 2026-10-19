@@ -22,6 +22,9 @@ namespace CaptionScribe.Tests
 
             using (var g = Graphics.FromImage(frame)) g.Clear(Color.Black);
             Assert.True(svc.HasMeaningfulChange(frame));
+
+            svc.ResetChangeDetection();
+            Assert.True(svc.HasMeaningfulChange(frame));
         }
 
         [Fact]

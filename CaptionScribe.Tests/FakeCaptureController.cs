@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using CaptionScribe.Models;
 using CaptionScribe.Services;
 
@@ -74,9 +75,13 @@ namespace CaptionScribe.Tests
         public string? LastPath { get; private set; }
         public string? LastContent { get; private set; }
         public int Writes { get; private set; }
+        public ManualResetEventSlim? Entered { get; set; }
+        public ManualResetEventSlim? BlockUntil { get; set; }
 
         public void Write(string path, string content)
         {
+            Entered?.Set();
+            BlockUntil?.Wait();
             LastPath = path;
             LastContent = content;
             Writes++;

@@ -49,6 +49,14 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void Clean_WithTimestamps_KeepsStampPrefix()
+        {
+            var result = TranscriptCleaner.Clean(new[] { Line("I don\u2022t") }, withTimestamps: true);
+            Assert.Contains("[09:00:00]", result);
+            Assert.Contains("I don't", result);
+        }
+
+        [Fact]
         public void CollapsesRepeatedSpeakerNames()
         {
             var lines = new[]

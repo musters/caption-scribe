@@ -42,6 +42,27 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void Error_WritesException()
+        {
+            var log = new FileLog(() => false, _dir);
+            log.Error("boom", new InvalidOperationException("detail"));
+            var text = File.ReadAllText(log.FilePath);
+            Assert.Contains("[ERR] boom", text);
+            Assert.Contains("detail", text);
+        }
+
+        [Fact]
+        public void PrunesOldLogFiles()
+        {
+            for (int i = 0; i < 12; i++)
+            {
+                var log = new FileLog(() => false, _dir);
+                log.Info("n" + i);
+            }
+            Assert.True(Directory.GetFiles(_dir, "log-*.txt").Length <= 10);
+        }
+
+        [Fact]
         public void NullLog_WritesNothing_AndNeverThrows()
         {
             ILog log = NullLog.Instance;

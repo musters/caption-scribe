@@ -63,7 +63,7 @@ namespace CaptionScribe.ViewModels
             NewScribeCommand = new RelayCommand(NewScribe, () => !IsCapturing && !IsBusy);
             SaveCommand = new RelayCommand(Save, () => HasContent && !IsBusy);
             ClearCommand = new RelayCommand(Clear, () => HasContent && !IsBusy);
-            CopyCommand = new RelayCommand(() => _busyWork = CopyAsync(), () => HasContent && !IsBusy);
+            CopyCommand = new RelayCommand(Copy, () => HasContent && !IsBusy);
             PlayPauseCommand = new RelayCommand(ToggleActive, () => !IsBusy);
             StopCommand = new RelayCommand(StopAndSave, () => IsCapturing && !IsBusy);
             HighlightCommand = new RelayCommand(Highlight, () => !IsBusy);
@@ -179,7 +179,12 @@ namespace CaptionScribe.ViewModels
             Refresh();
         }
 
-        private void StopAndSave() => _busyWork = StopAndSaveAsync();
+        private void StopAndSave()
+        {
+            if (_isBusy)
+                return;
+            _busyWork = StopAndSaveAsync();
+        }
 
         private async Task StopAndSaveAsync()
         {
@@ -229,6 +234,13 @@ namespace CaptionScribe.ViewModels
             _participants.Reset();
         }
 
+        private void Copy()
+        {
+            if (_isBusy)
+                return;
+            _busyWork = CopyAsync();
+        }
+
         private async Task CopyAsync()
         {
             if (Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
@@ -250,7 +262,12 @@ namespace CaptionScribe.ViewModels
             }
         }
 
-        private void Save() => _busyWork = SaveAsync();
+        private void Save()
+        {
+            if (_isBusy)
+                return;
+            _busyWork = SaveAsync();
+        }
 
         internal async Task<bool> SaveAsync()
         {
