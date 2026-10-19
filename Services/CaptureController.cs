@@ -130,9 +130,15 @@ namespace CaptionScribe.Services
                 _running = false;
                 try { _cts?.Cancel(); } catch { /* already disposed */ }
             }
-            _autoSaver.Stop();
             if (wasRunning)
+            {
                 _log.Info("Capture stopped.");
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try { _autoSaver.Stop(); }
+                    catch (Exception ex) { _log.Warning("Autosave stop failed: " + ex.Message); }
+                });
+            }
         }
 
         private void JoinPending()
@@ -437,7 +443,11 @@ namespace CaptionScribe.Services
 
         public void Dispose()
         {
-            Stop();
+            lock (_lifecycle)
+            {
+                _running = false;
+                try { _cts?.Cancel(); } catch { /* already disposed */ }
+            }
             JoinPending();
             _autoSaver.Dispose();
             _capture.Dispose();

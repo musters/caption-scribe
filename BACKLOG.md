@@ -170,7 +170,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0013 — Pause/Stop can still block the UI on autosave flush
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `CaptureController.Stop`, `TranscriptAutoSaver.Stop` / `WaitAndDropTimer`
