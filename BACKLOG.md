@@ -60,7 +60,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0003 — Pixel fingerprint OCRs almost every tick if the region includes motion
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `Services/ScreenCaptureService.cs` (`HasMeaningfulChange`, step 4, threshold `n/200`)

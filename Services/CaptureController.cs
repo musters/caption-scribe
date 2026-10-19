@@ -42,6 +42,7 @@ namespace CaptionScribe.Services
 
         // When capture first started for the current transcript; used to name saved files.
         private DateTime? _sessionStartedAt;
+        private string[]? _lastOcrTexts;
 
         public event EventHandler? TranscriptUpdated;
         public event EventHandler<string>? CaptureError;
@@ -323,8 +324,12 @@ namespace CaptionScribe.Services
                 var texts = new List<string>(layout.Count);
                 foreach (var line in layout)
                     texts.Add(line.Text);
-                _aggregator.AddSnapshot(texts);
-                TranscriptUpdated?.Invoke(this, EventArgs.Empty);
+                if (!SameTexts(texts, _lastOcrTexts))
+                {
+                    _lastOcrTexts = texts.ToArray();
+                    _aggregator.AddSnapshot(texts);
+                    TranscriptUpdated?.Invoke(this, EventArgs.Empty);
+                }
             }
 
             double layoutScale = (double)ocrImage.Width / Math.Max(1, raw.Width);
@@ -343,6 +348,18 @@ namespace CaptionScribe.Services
             token.ThrowIfCancellationRequested();
             _lastParticipantSampleUtc = now;
             _frameObserver.OnFrame(raw, scale <= 1.0001 ? layout : ScaleLayout(layout, scale));
+        }
+
+        private static bool SameTexts(List<string> texts, string[]? previous)
+        {
+            if (previous is null || previous.Length != texts.Count)
+                return false;
+            for (int i = 0; i < texts.Count; i++)
+            {
+                if (!string.Equals(texts[i], previous[i], StringComparison.Ordinal))
+                    return false;
+            }
+            return true;
         }
 
         private static IReadOnlyList<RecognizedLine> ScaleLayout(IReadOnlyList<RecognizedLine> layout, double scale)
@@ -401,6 +418,7 @@ namespace CaptionScribe.Services
             // Finalize the outgoing file before clearing, so the previous transcript is complete on disk.
             _autoSaver.Flush(final: true);
             Interlocked.Increment(ref _transcriptEpoch);
+            _lastOcrTexts = null;
             _aggregator.Clear();
             _autoSaver.Roll();
             _capture.ResetChangeDetection();

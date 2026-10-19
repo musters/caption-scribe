@@ -16,6 +16,7 @@ When reviewing or changing this repo:
 - After the project is built, always run the test suite.
 - Keep Help and README in sync with user-facing behavior.
 - Version lives in `CaptionScribe.csproj` (`<Version>`).
+- Prefer named constants over unexplained magic numbers.
 - Double check the code review suggestions, do a second pass, ensuring bad advice is not given and requirements do not conflict with one another.
 
 ## Testing

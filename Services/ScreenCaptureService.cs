@@ -108,7 +108,14 @@ namespace CaptionScribe.Services
         /// <summary>True when the frame differs enough from the last accepted one to warrant OCR.</summary>
         public unsafe bool HasMeaningfulChange(Bitmap bitmap)
         {
-            const int step = 4;
+            const int sampleStep = 4;
+            const int bytesPerPixel = 4;
+            const int blue = 0, green = 1, red = 2;
+            const int lumRed = 77, lumGreen = 150, lumBlue = 29, lumShift = 8;
+            const int minChangedSamples = 2;
+            const int changedSampleDivisor = 40;
+            const int minLumaDelta = 12;
+
             var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
             var data = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             try
@@ -116,19 +123,23 @@ namespace CaptionScribe.Services
                 lock (_sampleGate)
                 {
                     int w = bitmap.Width, h = bitmap.Height;
-                    int nx = (w + step - 1) / step;
-                    int ny = (h + step - 1) / step;
+                    int nx = (w + sampleStep - 1) / sampleStep;
+                    int ny = (h + sampleStep - 1) / sampleStep;
                     int n = nx * ny;
                     if (_currSample is null || _currSample.Length != n)
                         _currSample = new byte[n];
 
                     byte* src = (byte*)data.Scan0;
                     int i = 0;
-                    for (int y = 0; y < h; y += step)
+                    for (int y = 0; y < h; y += sampleStep)
                     {
                         byte* row = src + (long)y * data.Stride;
-                        for (int x = 0; x < w; x += step)
-                            _currSample[i++] = row[x * 4 + 1];
+                        for (int x = 0; x < w; x += sampleStep)
+                        {
+                            byte* px = row + x * bytesPerPixel;
+                            int luma = (px[red] * lumRed + px[green] * lumGreen + px[blue] * lumBlue) >> lumShift;
+                            _currSample[i++] = (byte)luma;
+                        }
                     }
 
                     if (_prevSample is null || _prevSample.Length != n)
@@ -137,11 +148,13 @@ namespace CaptionScribe.Services
                         return true;
                     }
 
-                    int threshold = Math.Max(1, n / 200);
+                    int threshold = Math.Max(minChangedSamples, n / changedSampleDivisor);
                     int changed = 0;
                     for (i = 0; i < n; i++)
                     {
-                        if (_prevSample[i] != _currSample[i] && ++changed >= threshold)
+                        int d = _currSample[i] - _prevSample[i];
+                        if (d < 0) d = -d;
+                        if (d > minLumaDelta && ++changed >= threshold)
                             break;
                     }
                     if (changed < threshold)
