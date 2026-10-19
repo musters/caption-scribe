@@ -76,41 +76,32 @@ namespace CaptionScribe.Services
         /// </summary>
         public void Flush(bool final)
         {
-            IReadOnlyList<string> lines;
-            int start;
-            int safe;
-            string path;
             lock (_gate)
             {
-                lines = _lines();
-                start = _appendedCount;
-                safe = Math.Max(0, lines.Count - (final ? 0 : StableMargin));
+                var lines = _lines();
+                int start = _appendedCount;
+                int safe = Math.Max(0, lines.Count - (final ? 0 : StableMargin));
                 if (safe <= start)
                     return;
-                path = _path;
-            }
 
-            var newLines = new List<string>(safe - start);
-            for (int i = start; i < safe; i++)
-                newLines.Add(lines[i]);
+                var newLines = new List<string>(safe - start);
+                for (int i = start; i < safe; i++)
+                    newLines.Add(lines[i]);
 
-            try
-            {
-                File.AppendAllLines(path, newLines);
-            }
-            catch (Exception ex)
-            {
-                _log.Warning("Autosave append failed: " + ex.Message);
-                return;
-            }
+                try
+                {
+                    File.AppendAllLines(_path, newLines);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warning("Autosave append failed: " + ex.Message);
+                    return;
+                }
 
-            lock (_gate)
-            {
-                if (_path == path && _appendedCount == start)
-                    _appendedCount = safe;
+                _appendedCount = safe;
+                if (_log.IsDebugEnabled)
+                    _log.Debug($"Autosaved {newLines.Count} line(s).");
             }
-            if (_log.IsDebugEnabled)
-                _log.Debug($"Autosaved {newLines.Count} line(s).");
         }
 
         public void Dispose()

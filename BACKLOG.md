@@ -192,7 +192,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0015 — Autosave Flush vs Clear race
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `TranscriptAutoSaver.Flush` (releases `_gate` across `AppendAllLines`), `CaptureController.ClearTranscript`
