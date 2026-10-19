@@ -32,7 +32,8 @@ namespace CaptionScribe.Views
             TopMost = true;
             AutoScaleMode = AutoScaleMode.None;
 
-            _timer = new Timer { Interval = Math.Max(500, durationMs) };
+            const int minHighlightDurationMs = 500;
+            _timer = new Timer { Interval = Math.Max(minHighlightDurationMs, durationMs) };
             _timer.Tick += (_, _) => Close();
         }
 

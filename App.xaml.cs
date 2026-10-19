@@ -29,15 +29,8 @@ namespace CaptionScribe
         private ParticipantCollector _participants = null!;
         private TrayIcon _tray = null!;
         private ILog _log = null!;
-        private Mutex? _instanceMutex;
-        private EventWaitHandle? _showWindowEvent;
-        private RegisteredWaitHandle? _showWindowWait;
-        private volatile bool _exiting;
+        private SingleInstanceHost? _singleInstance;
         private int _handlesReleased;
-
-        private const string InstanceMutexName = @"Local\CaptionScribe";
-        private const string ShowWindowEventName = @"Local\CaptionScribe.ShowWindow";
-        private const int UnregisterWaitMs = 500;
 
         // Set when Windows is logging off/shutting down, so exit never blocks the OS.
         private bool _systemShutdown;
@@ -178,16 +171,9 @@ namespace CaptionScribe
         {
             bool launchedAtStartup = HasStartupArgument(e.Args);
 
-            _instanceMutex = new Mutex(true, InstanceMutexName, out bool createdNew);
-            _showWindowEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowWindowEventName);
-            if (!createdNew)
+            _singleInstance = new SingleInstanceHost();
+            if (!_singleInstance.TryClaim(notifyExisting: !launchedAtStartup))
             {
-                if (!launchedAtStartup)
-                    _showWindowEvent.Set();
-                _showWindowEvent.Dispose();
-                _showWindowEvent = null;
-                _instanceMutex.Dispose();
-                _instanceMutex = null;
                 Shutdown();
                 return;
             }
@@ -231,7 +217,7 @@ namespace CaptionScribe
                     onExit: () => RunTray(_viewModel.ExitCommand));
                 _tray.SetActive(_viewModel.IsCapturing);
 
-                StartShowWindowListener();
+                _singleInstance.Listen(ShowMainWindow, Dispatcher);
 
                 if (!launchedAtStartup)
                     _mainWindow.Show();
@@ -252,19 +238,8 @@ namespace CaptionScribe
         {
             if (Interlocked.Exchange(ref _handlesReleased, 1) != 0)
                 return;
-            _exiting = true;
-            if (_showWindowWait is not null)
-            {
-                using var done = new ManualResetEvent(false);
-                if (!_showWindowWait.Unregister(done))
-                    done.Set();
-                done.WaitOne(UnregisterWaitMs);
-                _showWindowWait = null;
-            }
-            _showWindowEvent?.Dispose();
-            _showWindowEvent = null;
-            _instanceMutex?.Dispose();
-            _instanceMutex = null;
+            _singleInstance?.Dispose();
+            _singleInstance = null;
             _regionService?.Dispose();
             _controller?.Dispose();
             _tray?.Dispose();
@@ -295,31 +270,13 @@ namespace CaptionScribe
 
         private void ShowMainWindow()
         {
-            if (_exiting || Dispatcher.HasShutdownStarted)
+            if (Dispatcher.HasShutdownStarted)
                 return;
             _mainWindow.Show();
             if (_mainWindow.WindowState == WindowState.Minimized)
                 _mainWindow.WindowState = WindowState.Normal;
             _mainWindow.Activate();
             KeepMainWindowClearOfRegion();
-        }
-
-        private void StartShowWindowListener()
-        {
-            if (_showWindowEvent is null)
-                return;
-            _showWindowWait = ThreadPool.RegisterWaitForSingleObject(
-                _showWindowEvent,
-                (_, _) =>
-                {
-                    if (_exiting)
-                        return;
-                    try { Dispatcher.BeginInvoke(ShowMainWindow); }
-                    catch (InvalidOperationException) { /* dispatcher gone */ }
-                },
-                state: null,
-                millisecondsTimeOutInterval: Timeout.Infinite,
-                executeOnlyOnce: false);
         }
 
         // Nearest working-area corner (on the region's monitor) at which the window clears the region.

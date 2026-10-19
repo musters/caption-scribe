@@ -205,7 +205,10 @@ namespace CaptionScribe.Services
         // Rejects blank/near-uniform crops: a name-shaped line with no avatar beside it (e.g. a shared-item title).
         private static unsafe bool HasAvatarContent(Bitmap crop)
         {
-            int step = Math.Max(1, Math.Min(crop.Width, crop.Height) / 24);
+            const int contentSampleDivisor = 24;
+            const int bytesPerPixel = 4;
+            const double lumaBlue = 0.114, lumaGreen = 0.587, lumaRed = 0.299;
+            int step = Math.Max(1, Math.Min(crop.Width, crop.Height) / contentSampleDivisor);
             var rect = new Rectangle(0, 0, crop.Width, crop.Height);
             var data = crop.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             try
@@ -218,8 +221,8 @@ namespace CaptionScribe.Services
                     byte* row = scan0 + y * data.Stride;
                     for (int x = 0; x < crop.Width; x += step)
                     {
-                        byte* px = row + x * 4;   // BGRA in memory
-                        double lum = 0.114 * px[0] + 0.587 * px[1] + 0.299 * px[2];
+                        byte* px = row + x * bytesPerPixel;
+                        double lum = lumaBlue * px[0] + lumaGreen * px[1] + lumaRed * px[2];
                         sum += lum;
                         sumSq += lum * lum;
                         n++;

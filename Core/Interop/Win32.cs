@@ -233,6 +233,9 @@ namespace CaptionScribe.Core.Interop
             return new WindowInfo(hWnd, title, SafeGetProcessName(pid), pid, IsIconic(hWnd));
         }
 
+        private const int ProcessNameCacheTtlMs = 2000;
+        private const int ProcessNameCacheMaxEntries = 64;
+
         private static readonly Dictionary<uint, (string Name, long Until)> ProcessNameCache = new();
         private static readonly object ProcessNameGate = new();
 
@@ -251,15 +254,14 @@ namespace CaptionScribe.Core.Interop
             lock (ProcessNameGate)
             {
                 EvictProcessNameCache(now);
-                ProcessNameCache[pid] = (name, now + 2000);
+                ProcessNameCache[pid] = (name, now + ProcessNameCacheTtlMs);
             }
             return name;
         }
 
         private static void EvictProcessNameCache(long now)
         {
-            const int maxEntries = 64;
-            if (ProcessNameCache.Count < maxEntries)
+            if (ProcessNameCache.Count < ProcessNameCacheMaxEntries)
                 return;
             List<uint>? stale = null;
             foreach (var kv in ProcessNameCache)
@@ -272,7 +274,7 @@ namespace CaptionScribe.Core.Interop
                 foreach (uint id in stale)
                     ProcessNameCache.Remove(id);
             }
-            if (ProcessNameCache.Count >= maxEntries)
+            if (ProcessNameCache.Count >= ProcessNameCacheMaxEntries)
                 ProcessNameCache.Clear();
         }
 

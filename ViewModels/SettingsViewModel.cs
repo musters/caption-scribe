@@ -100,22 +100,22 @@ namespace CaptionScribe.ViewModels
         public string AutoSaveInterval
         {
             get => _autoSaveInterval;
-            set { if (Set(ref _autoSaveInterval, value)) ValidateInt(value, 1, 60, nameof(AutoSaveInterval)); }
+            set { if (Set(ref _autoSaveInterval, value)) ValidateInt(value, AppSettings.MinAutoSaveIntervalMinutes, AppSettings.MaxAutoSaveIntervalMinutes, nameof(AutoSaveInterval)); }
         }
         public string Upscale
         {
             get => _upscale;
-            set { if (Set(ref _upscale, value)) ValidateInt(value, 1, 4, nameof(Upscale)); }
+            set { if (Set(ref _upscale, value)) ValidateInt(value, AppSettings.MinUpscaleFactor, AppSettings.MaxUpscaleFactor, nameof(Upscale)); }
         }
         public string Threshold
         {
             get => _threshold;
-            set { if (Set(ref _threshold, value)) ValidateDouble(value, 0.0, 1.0, nameof(Threshold)); }
+            set { if (Set(ref _threshold, value)) ValidateDouble(value, AppSettings.MinSimilarityThreshold, AppSettings.MaxSimilarityThreshold, nameof(Threshold)); }
         }
         public string Settle
         {
             get => _settle;
-            set { if (Set(ref _settle, value)) ValidateInt(value, 0, 5000, nameof(Settle)); }
+            set { if (Set(ref _settle, value)) ValidateInt(value, AppSettings.MinFocusSettleMs, AppSettings.MaxFocusSettleMs, nameof(Settle)); }
         }
         public string Hint { get => _hint; set => Set(ref _hint, value); }
         public string AutoSaveDir
@@ -138,7 +138,7 @@ namespace CaptionScribe.ViewModels
         public string AutoSavePromptThreshold
         {
             get => _autoSavePromptThreshold;
-            set { if (Set(ref _autoSavePromptThreshold, value)) ValidateInt(value, 1, 1000000, nameof(AutoSavePromptThreshold)); }
+            set { if (Set(ref _autoSavePromptThreshold, value)) ValidateInt(value, AppSettings.MinAutoSavePromptThreshold, AppSettings.MaxAutoSavePromptThreshold, nameof(AutoSavePromptThreshold)); }
         }
         public bool AutoDeleteOldAutoSaves { get => _autoDeleteOldAutoSaves; set => Set(ref _autoDeleteOldAutoSaves, value); }
         public bool EnableParticipantCapture { get => _enableParticipantCapture; set => Set(ref _enableParticipantCapture, value); }
@@ -299,11 +299,11 @@ namespace CaptionScribe.ViewModels
         private void ValidateAll()
         {
             ValidateInt(CaptureInterval, AppSettings.MinCaptureIntervalMs, AppSettings.MaxCaptureIntervalMs, nameof(CaptureInterval));
-            ValidateInt(AutoSaveInterval, 1, 60, nameof(AutoSaveInterval));
-            ValidateInt(Upscale, 1, 4, nameof(Upscale));
-            ValidateDouble(Threshold, 0.0, 1.0, nameof(Threshold));
-            ValidateInt(Settle, 0, 5000, nameof(Settle));
-            ValidateInt(AutoSavePromptThreshold, 1, 1000000, nameof(AutoSavePromptThreshold));
+            ValidateInt(AutoSaveInterval, AppSettings.MinAutoSaveIntervalMinutes, AppSettings.MaxAutoSaveIntervalMinutes, nameof(AutoSaveInterval));
+            ValidateInt(Upscale, AppSettings.MinUpscaleFactor, AppSettings.MaxUpscaleFactor, nameof(Upscale));
+            ValidateDouble(Threshold, AppSettings.MinSimilarityThreshold, AppSettings.MaxSimilarityThreshold, nameof(Threshold));
+            ValidateInt(Settle, AppSettings.MinFocusSettleMs, AppSettings.MaxFocusSettleMs, nameof(Settle));
+            ValidateInt(AutoSavePromptThreshold, AppSettings.MinAutoSavePromptThreshold, AppSettings.MaxAutoSavePromptThreshold, nameof(AutoSavePromptThreshold));
         }
 
         private void ValidateDouble(string text, double min, double max, string propertyName)

@@ -13,8 +13,12 @@ namespace CaptionScribe.Services
     {
         public void Write(string path, string title, IReadOnlyList<Participant> participants)
         {
-            const int width = 460, pad = 16, avatar = 44, rowGap = 12;
-            int rowH = avatar + rowGap;
+            const int imageWidth = 460;
+            const int pad = 16;
+            const int avatarSize = 44;
+            const int rowGap = 12;
+            const int nameGap = 12;
+            int rowH = avatarSize + rowGap;
 
             using var headerFont = new Font("Segoe UI", 12f, FontStyle.Bold);
             using var nameFont = new Font("Segoe UI", 11f);
@@ -22,24 +26,24 @@ namespace CaptionScribe.Services
             int headerH;
             using (var probe = new Bitmap(1, 1))
             using (var g = Graphics.FromImage(probe))
-                headerH = (int)Math.Ceiling(g.MeasureString(title, headerFont, width - 2 * pad).Height) + pad;
+                headerH = (int)Math.Ceiling(g.MeasureString(title, headerFont, imageWidth - 2 * pad).Height) + pad;
 
             int height = pad + headerH + Math.Max(1, participants.Count) * rowH + pad;
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            using var bmp = new Bitmap(imageWidth, height, PixelFormat.Format32bppArgb);
             using (var g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.Clear(Color.White);
                 using var text = new SolidBrush(Color.FromArgb(0x22, 0x22, 0x22));
 
-                g.DrawString(title, headerFont, text, new RectangleF(pad, pad, width - 2 * pad, headerH));
+                g.DrawString(title, headerFont, text, new RectangleF(pad, pad, imageWidth - 2 * pad, headerH));
 
                 int y = pad + headerH;
                 foreach (var p in participants)
                 {
-                    DrawAvatar(g, p.AvatarPng, pad, y, avatar);
-                    g.DrawString(p.Name, nameFont, text, pad + avatar + 12, y + (avatar - nameFont.Height) / 2f);
+                    DrawAvatar(g, p.AvatarPng, pad, y, avatarSize);
+                    g.DrawString(p.Name, nameFont, text, pad + avatarSize + nameGap, y + (avatarSize - nameFont.Height) / 2f);
                     y += rowH;
                 }
             }

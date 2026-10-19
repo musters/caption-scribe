@@ -15,6 +15,7 @@ namespace CaptionScribe.Services
     {
         // Lines within this many of the end may still be revised by later frames, so hold them back.
         private const int StableMargin = 20;
+        private static readonly TimeSpan TimerStopWait = TimeSpan.FromSeconds(5);
         public static readonly TimeSpan DefaultRetention = TimeSpan.FromDays(30);
 
         private readonly Func<int, IReadOnlyList<string>> _linesFrom;
@@ -128,7 +129,7 @@ namespace CaptionScribe.Services
                 return;
             using var done = new ManualResetEvent(false);
             timer.Dispose(done);
-            if (!done.WaitOne(TimeSpan.FromSeconds(5)))
+            if (!done.WaitOne(TimerStopWait))
                 _log.Warning("Timed out waiting for the autosave timer to finish.");
         }
 

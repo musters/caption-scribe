@@ -4,6 +4,16 @@ namespace CaptionScribe.Models
     {
         public const int MinCaptureIntervalMs = 200;
         public const int MaxCaptureIntervalMs = 60000;
+        public const int MinAutoSaveIntervalMinutes = 1;
+        public const int MaxAutoSaveIntervalMinutes = 60;
+        public const int MinUpscaleFactor = 1;
+        public const int MaxUpscaleFactor = 4;
+        public const int MinFocusSettleMs = 0;
+        public const int MaxFocusSettleMs = 5000;
+        public const int MinAutoSavePromptThreshold = 1;
+        public const int MaxAutoSavePromptThreshold = 1_000_000;
+        public const double MinSimilarityThreshold = 0.0;
+        public const double MaxSimilarityThreshold = 1.0;
 
         public CaptureRegion? Region { get; set; }
 

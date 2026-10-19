@@ -15,6 +15,7 @@ namespace CaptionScribe.Services
         private readonly ScreenCaptureService _capture = new();
         private readonly OcrService _ocr = new();
         private readonly WindowService _windows = new();
+        private readonly FocusAwareGrabber _grabber;
         private readonly TranscriptAggregator _aggregator;
         private readonly TranscriptAutoSaver _autoSaver;
         private readonly AppSettings _settings;
@@ -41,6 +42,7 @@ namespace CaptionScribe.Services
 
         // The single capture loop feeds the frame observer (participants) on this cadence, reusing one grab + engine.
         private static readonly TimeSpan ParticipantSampleInterval = TimeSpan.FromSeconds(4);
+        private const double UnityScaleEpsilon = 1.0001;
         private DateTime _lastParticipantSampleUtc;
 
         // When capture first started for the current transcript; used to name saved files.
@@ -64,6 +66,7 @@ namespace CaptionScribe.Services
             _log = log;
             _frameObserver = frameObserver;
             _snapshot = CaptureSettings.From(settings);
+            _grabber = new FocusAwareGrabber(_capture, _windows);
             _aggregator = new TranscriptAggregator(settings.SimilarityThreshold);
             _autoSaver = new TranscriptAutoSaver(
                 start => _aggregator.GetLinesFrom(start),
@@ -161,7 +164,7 @@ namespace CaptionScribe.Services
 
             if (!started)
                 return;
-            _autoSaver.Start(TimeSpan.FromMinutes(Math.Max(1, _settings.AutoSaveIntervalMinutes)));
+            _autoSaver.Start(TimeSpan.FromMinutes(Math.Max(AppSettings.MinAutoSaveIntervalMinutes, _settings.AutoSaveIntervalMinutes)));
             _log.Info("Capture started.");
         }
 
@@ -238,7 +241,7 @@ namespace CaptionScribe.Services
                             var s = _snapshot;
                             if (s.Region is not null && TeamsPresentForCapture(s))
                             {
-                                var raw = await GrabRawAsync(s, token);
+                                var raw = await _grabber.GrabAsync(s, token);
                                 if (_capture.HasMeaningfulChange(raw))
                                     await RecognizeCaptionsAsync(raw, s, token);
                             }
@@ -327,36 +330,6 @@ namespace CaptionScribe.Services
             catch (OperationCanceledException) { return false; }
         }
 
-        /// <summary>
-        /// Grabs the region at native resolution/color. When focus-switching is enabled and the Teams
-        /// window is not already in front, briefly activates it for the screenshot then restores focus.
-        /// </summary>
-        private async Task<Bitmap> GrabRawAsync(CaptureSettings s, CancellationToken token)
-        {
-            var region = s.Region!.Value;
-            if (!s.FocusSwitchEnabled)
-                return _capture.CaptureRaw(region);
-
-            IntPtr teams = _windows.FindTeamsWindow(s.TeamsWindowTitleHint);
-            if (teams == IntPtr.Zero || Win32.IsForeground(teams))
-                return _capture.CaptureRaw(region);
-
-            IntPtr previous = Win32.GetForegroundWindowHandle();
-            bool activated = Win32.TryActivate(teams);
-            try
-            {
-                if (activated && s.FocusSettleMs > 0)
-                    await Task.Delay(s.FocusSettleMs, token);
-                token.ThrowIfCancellationRequested();
-                return _capture.CaptureRaw(region);
-            }
-            finally
-            {
-                if (activated && previous != IntPtr.Zero)
-                    Win32.TryActivate(previous);
-            }
-        }
-
         // Captions OCR the upscaled/enhanced image so text accuracy is unchanged; the raw frame stays native.
         // Participant collection reuses that layout (boxes scaled back to raw pixels) — one OCR per changed frame.
         private async Task RecognizeCaptionsAsync(Bitmap raw, CaptureSettings s, CancellationToken token)
@@ -410,7 +383,7 @@ namespace CaptionScribe.Services
                 return;
             token.ThrowIfCancellationRequested();
             _lastParticipantSampleUtc = now;
-            _frameObserver.OnFrame(raw, scale <= 1.0001 ? layout : ScaleLayout(layout, scale));
+            _frameObserver.OnFrame(raw, scale <= UnityScaleEpsilon ? layout : ScaleLayout(layout, scale));
         }
 
         private static bool SameTexts(List<string> texts, string[]? previous)

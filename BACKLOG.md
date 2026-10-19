@@ -222,3 +222,55 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 **What:** `OperationCanceledException` from the settle delay is swallowed, then `CopyFromScreen` and focus restore still run. After Pause this extra focus-switch/screenshot still happens.
 
 **Fix:** Rethrow or return on cancel before capture; keep the restore `finally` only when activation succeeded and cancel did not fire.
+
+### AUDIT-0018 — Remaining unnamed magic numbers
+
+**Status:** DONE  
+**Priority:** MED
+
+**Where:** production `.cs` files (not Win32 API flags)
+
+**What:** After naming the capture-sample constants, these still bury meaning in literals:
+
+- `Core/Interop/Win32.cs` — process-name cache TTL `2000` ms (local `maxEntries = 64` is named)
+- `Services/TranscriptAutoSaver.cs` — `WaitOne(TimeSpan.FromSeconds(5))`
+- `Services/CaptureController.cs` — `Math.Max(1, AutoSaveIntervalMinutes)`; layout scale compare `1.0001`
+- `Views/RegionHighlightForm.cs` — `Math.Max(500, durationMs)`
+- `Services/ParticipantImageWriter.cs` — `width = 460`, `pad = 16`, `avatar = 44`, `rowGap = 12`
+- `Services/ParticipantRoster.cs` — `HasAvatarContent` step `/ 24`; luma `0.114` / `0.587` / `0.299`
+- `ViewModels/SettingsViewModel.cs` — validation ranges (`1..60` minutes, `0..5000` settle, `1..1000000` autosave prompt, upscale `1..4`) not shared with `AppSettings` min/max where those exist
+
+**Fix:** Named constants (same style as `HasMeaningfulChange`). Prefer sharing settings bounds with `AppSettings.MinCaptureIntervalMs` / `MaxCaptureIntervalMs` where they already exist.
+
+### AUDIT-0019 — Split CaptureController
+
+**Status:** DONE  
+**Priority:** MED
+
+**Where:** `Services/CaptureController.cs` (~454 lines)
+
+**What:** One type owns loop lifecycle, OCR, Teams gating, transcript epoch, autosave, diagnostics, and focus-switch grab. Harder to test and easy to reintroduce UI-thread joins.
+
+**Fix:** Extract collaborators (e.g. loop runner, grab/focus-switch, transcript apply) while keeping `ICaptureController` as the VM façade. No new NuGet.
+
+### AUDIT-0020 — Split MainViewModel
+
+**Status:** DONE  
+**Priority:** MED
+
+**Where:** `ViewModels/MainViewModel.cs` (~441 lines)
+
+**What:** Commands, save/copy busy pipeline, display refresh, settings toggles, and participant wiring live in one VM. Save/busy reentrancy bugs clustered here.
+
+**Fix:** Extract save/export and display-refresh helpers (or a small save service) so the VM stays command routing + state.
+
+### AUDIT-0021 — Split App startup shell
+
+**Status:** DONE  
+**Priority:** LOW
+
+**Where:** `App.xaml.cs` (~329 lines)
+
+**What:** Single-instance mutex/event, tray wiring, exception handlers, window-vs-region placement, and autosave-cache prompt are all in `App`.
+
+**Fix:** Move single-instance and tray host to small types under `Core/Shell` (alongside `TrayIcon`). Keep `App` as composition root.
