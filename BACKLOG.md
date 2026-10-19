@@ -148,7 +148,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0011 — Transcript epoch then AddSnapshot race
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** HIGH
 
 **Where:** `Services/CaptureController.cs` `RecognizeCaptionsAsync` / `ClearTranscript`

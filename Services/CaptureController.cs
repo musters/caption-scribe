@@ -24,6 +24,7 @@ namespace CaptionScribe.Services
         private volatile CaptureSettings _snapshot;
 
         private readonly object _lifecycle = new();
+        private readonly object _transcriptGate = new();
         private volatile CancellationTokenSource? _cts;
         private Task? _loop;
         private volatile bool _running;
@@ -314,26 +315,30 @@ namespace CaptionScribe.Services
             var layout = await _ocr.RecognizeLayoutAsync(ocrImage,
                 includeBoxes: _frameObserver is { WantsFrames: true }, token);
             token.ThrowIfCancellationRequested();
-            if (epoch != Volatile.Read(ref _transcriptEpoch))
-                return;
 
-            if (_log.IsDebugEnabled)
-                _log.Debug($"OCR produced {layout.Count} line(s).");
+            List<string>? texts = null;
             if (layout.Count > 0)
             {
-                var texts = new List<string>(layout.Count);
+                texts = new List<string>(layout.Count);
                 foreach (var line in layout)
                     texts.Add(line.Text);
-                if (!SameTexts(texts, _lastOcrTexts))
+            }
+
+            double layoutScale = (double)ocrImage.Width / Math.Max(1, raw.Width);
+            lock (_transcriptGate)
+            {
+                if (epoch != _transcriptEpoch)
+                    return;
+                if (_log.IsDebugEnabled)
+                    _log.Debug($"OCR produced {layout.Count} line(s).");
+                if (texts is not null && !SameTexts(texts, _lastOcrTexts))
                 {
                     _lastOcrTexts = texts.ToArray();
                     _aggregator.AddSnapshot(texts);
                     TranscriptUpdated?.Invoke(this, EventArgs.Empty);
                 }
+                NotifyParticipants(raw, layout, layoutScale, token);
             }
-
-            double layoutScale = (double)ocrImage.Width / Math.Max(1, raw.Width);
-            NotifyParticipants(raw, layout, layoutScale, token);
         }
 
         private void NotifyParticipants(Bitmap raw, IReadOnlyList<RecognizedLine> layout, double scale,
@@ -417,9 +422,12 @@ namespace CaptionScribe.Services
         {
             // Finalize the outgoing file before clearing, so the previous transcript is complete on disk.
             _autoSaver.Flush(final: true);
-            Interlocked.Increment(ref _transcriptEpoch);
-            _lastOcrTexts = null;
-            _aggregator.Clear();
+            lock (_transcriptGate)
+            {
+                _transcriptEpoch++;
+                _lastOcrTexts = null;
+                _aggregator.Clear();
+            }
             _autoSaver.Roll();
             _capture.ResetChangeDetection();
             _sessionStartedAt = _running ? DateTime.Now : null;
