@@ -63,6 +63,34 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void ClampProcessedSize_LeavesSmallFramesUnchanged()
+        {
+            ScreenCaptureService.ClampProcessedSize(10, 6, 3, out int w, out int h);
+            Assert.Equal(30, w);
+            Assert.Equal(18, h);
+        }
+
+        [Fact]
+        public void ClampProcessedSize_CapsHugeFrames()
+        {
+            ScreenCaptureService.ClampProcessedSize(3840, 2160, 4, out int w, out int h);
+            Assert.True((long)w * h <= ScreenCaptureService.MaxProcessedPixels);
+            Assert.True(w < 3840 * 4);
+            Assert.True(h < 2160 * 4);
+        }
+
+        [Fact]
+        public void Process_HugeUpscale_StaysWithinPixelCap()
+        {
+            using var svc = new ScreenCaptureService();
+            using var raw = new Bitmap(800, 600, PixelFormat.Format32bppArgb);
+
+            var processed = svc.Process(raw, upscaleFactor: 4, enhance: false);
+
+            Assert.True((long)processed.Width * processed.Height <= ScreenCaptureService.MaxProcessedPixels);
+        }
+
+        [Fact]
         public void Process_ReallocatesOnSizeChange_AndReleaseBuffersResetsThePool()
         {
             using var svc = new ScreenCaptureService();

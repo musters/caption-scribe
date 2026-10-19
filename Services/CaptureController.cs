@@ -303,7 +303,9 @@ namespace CaptionScribe.Services
         {
             // Both raw and the processed image are pooled buffers owned by _capture; do not dispose them.
             int scale = Math.Max(1, s.UpscaleFactor);
-            Bitmap ocrImage = (scale > 1 || s.EnhanceForOcr)
+            long rawPixels = (long)raw.Width * raw.Height;
+            bool overCap = rawPixels * scale * scale > ScreenCaptureService.MaxProcessedPixels;
+            Bitmap ocrImage = (scale > 1 || s.EnhanceForOcr || overCap)
                 ? _capture.Process(raw, scale, s.EnhanceForOcr)
                 : raw;
 
@@ -325,10 +327,11 @@ namespace CaptionScribe.Services
                 TranscriptUpdated?.Invoke(this, EventArgs.Empty);
             }
 
-            NotifyParticipants(raw, layout, scale, token);
+            double layoutScale = (double)ocrImage.Width / Math.Max(1, raw.Width);
+            NotifyParticipants(raw, layout, layoutScale, token);
         }
 
-        private void NotifyParticipants(Bitmap raw, IReadOnlyList<RecognizedLine> layout, int scale,
+        private void NotifyParticipants(Bitmap raw, IReadOnlyList<RecognizedLine> layout, double scale,
             CancellationToken token)
         {
             if (_frameObserver is not { WantsFrames: true })
@@ -339,15 +342,14 @@ namespace CaptionScribe.Services
                 return;
             token.ThrowIfCancellationRequested();
             _lastParticipantSampleUtc = now;
-            _frameObserver.OnFrame(raw, scale <= 1 ? layout : ScaleLayout(layout, scale));
+            _frameObserver.OnFrame(raw, scale <= 1.0001 ? layout : ScaleLayout(layout, scale));
         }
 
-        private static IReadOnlyList<RecognizedLine> ScaleLayout(IReadOnlyList<RecognizedLine> layout, int scale)
+        private static IReadOnlyList<RecognizedLine> ScaleLayout(IReadOnlyList<RecognizedLine> layout, double scale)
         {
-            double f = scale;
             var scaled = new List<RecognizedLine>(layout.Count);
             foreach (var line in layout)
-                scaled.Add(new RecognizedLine(line.Text, line.X / f, line.Y / f, line.Width / f, line.Height / f));
+                scaled.Add(new RecognizedLine(line.Text, line.X / scale, line.Y / scale, line.Width / scale, line.Height / scale));
             return scaled;
         }
 

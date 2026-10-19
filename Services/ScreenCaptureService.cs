@@ -26,14 +26,33 @@ namespace CaptionScribe.Services
             return raw;
         }
 
+        /// <summary>OCR input is capped so a full-screen region × upscale cannot allocate tens of megabytes per frame.</summary>
+        internal const int MaxProcessedPixels = 4_000_000;
+
+        internal static void ClampProcessedSize(int srcWidth, int srcHeight, int upscaleFactor, out int destWidth, out int destHeight)
+        {
+            int scale = Math.Max(1, upscaleFactor);
+            srcWidth = Math.Max(1, srcWidth);
+            srcHeight = Math.Max(1, srcHeight);
+            destWidth = srcWidth * scale;
+            destHeight = srcHeight * scale;
+            long pixels = (long)destWidth * destHeight;
+            if (pixels <= MaxProcessedPixels)
+                return;
+            double f = Math.Sqrt((double)MaxProcessedPixels / ((long)srcWidth * srcHeight));
+            destWidth = Math.Max(1, (int)(srcWidth * f));
+            destHeight = Math.Max(1, (int)(srcHeight * f));
+        }
+
         /// <summary>
         /// Upscales and optionally contrast-enhances a raw frame for OCR into a reused buffer. The returned
         /// bitmap is owned by this service — do not dispose it; it is overwritten on the next call.
+        /// Destination size is clamped to <see cref="MaxProcessedPixels"/>.
         /// </summary>
         public Bitmap Process(Bitmap raw, int upscaleFactor, bool enhance)
         {
-            int scale = Math.Max(1, upscaleFactor);
-            var processed = EnsurePool(ref _processedPool, ref _processedGraphics, raw.Width * scale, raw.Height * scale);
+            ClampProcessedSize(raw.Width, raw.Height, upscaleFactor, out int destW, out int destH);
+            var processed = EnsurePool(ref _processedPool, ref _processedGraphics, destW, destH);
             var g = _processedGraphics!;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             g.PixelOffsetMode = PixelOffsetMode.Half;
