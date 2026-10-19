@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using CaptionScribe.Models;
@@ -34,6 +35,10 @@ namespace CaptionScribe.ViewModels
         private bool _lastCapturing;
         private bool _lastHasContent;
         private bool _refreshInitialized;
+        private bool _isBusy;
+        private string _busyMessage = "";
+        private int _saveGate;
+        private Task _busyWork = Task.CompletedTask;
 
         /// <summary>Raised when the user asks to exit; the shell (App) performs the shutdown.</summary>
         public event EventHandler? ExitRequested;
@@ -52,19 +57,19 @@ namespace CaptionScribe.ViewModels
             _participants = participants;
             _dispatcher = Dispatcher.CurrentDispatcher;
 
-            NewScribeCommand = new RelayCommand(NewScribe, () => !IsCapturing);
-            SaveCommand = new RelayCommand(() => Save(), () => HasContent);
-            ClearCommand = new RelayCommand(Clear, () => HasContent);
-            CopyCommand = new RelayCommand(Copy, () => HasContent);
-            PlayPauseCommand = new RelayCommand(ToggleActive);
-            StopCommand = new RelayCommand(StopAndSave, () => IsCapturing);
-            HighlightCommand = new RelayCommand(Highlight);
-            SelectRegionCommand = new RelayCommand(SelectRegion);
-            CaptureDiagnosticsCommand = new RelayCommand(ShowCaptureDiagnostics);
-            SettingsCommand = new RelayCommand(OpenSettings);
-            HelpCommand = new RelayCommand(() => _dialogs.ShowHelp());
-            AboutCommand = new RelayCommand(() => _dialogs.ShowAbout(_controller.AutoSavePath));
-            ExitCommand = new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty));
+            NewScribeCommand = new RelayCommand(NewScribe, () => !IsCapturing && !IsBusy);
+            SaveCommand = new RelayCommand(Save, () => HasContent && !IsBusy);
+            ClearCommand = new RelayCommand(Clear, () => HasContent && !IsBusy);
+            CopyCommand = new RelayCommand(Copy, () => HasContent && !IsBusy);
+            PlayPauseCommand = new RelayCommand(ToggleActive, () => !IsBusy);
+            StopCommand = new RelayCommand(StopAndSave, () => IsCapturing && !IsBusy);
+            HighlightCommand = new RelayCommand(Highlight, () => !IsBusy);
+            SelectRegionCommand = new RelayCommand(SelectRegion, () => !IsBusy);
+            CaptureDiagnosticsCommand = new RelayCommand(ShowCaptureDiagnostics, () => !IsBusy);
+            SettingsCommand = new RelayCommand(OpenSettings, () => !IsBusy);
+            HelpCommand = new RelayCommand(() => _dialogs.ShowHelp(), () => !IsBusy);
+            AboutCommand = new RelayCommand(() => _dialogs.ShowAbout(_controller.AutoSavePath), () => !IsBusy);
+            ExitCommand = new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty), () => !IsBusy);
 
             _controller.TranscriptUpdated += OnTranscriptUpdated;
             _controller.CaptureStateChanged += OnCaptureStateChanged;
@@ -94,14 +99,18 @@ namespace CaptionScribe.ViewModels
 
         public bool IsCapturing => _controller.IsRunning;
         public bool HasContent => _controller.TranscriptLineCount > 0;
-        public bool ShowIdleOverlay => !IsCapturing && !HasContent;
+        public bool ShowIdleOverlay => !IsCapturing && !HasContent && !IsBusy;
         public string PlayPauseToolTip => IsCapturing ? "Pause capturing" : "Start capturing";
+        public bool IsBusy => _isBusy;
+        public string BusyMessage => _busyMessage;
+        public bool IsUiEnabled => !_isBusy;
+        internal Task BusyWork => _busyWork;
 
         /// <summary>Two-way for the checkable "Active" menu item; toggling starts/stops capture.</summary>
         public bool IsActive
         {
             get => IsCapturing;
-            set { if (value != IsCapturing) ToggleActive(); }
+            set { if (!_isBusy && value != IsCapturing) ToggleActive(); }
         }
 
         public bool ShowAllOutput
@@ -146,6 +155,8 @@ namespace CaptionScribe.ViewModels
         // ---- capture control ----
         public void ToggleActive()
         {
+            if (_isBusy)
+                return;
             if (!IsCapturing)
             {
                 if (_settings.Region is null)
@@ -165,16 +176,21 @@ namespace CaptionScribe.ViewModels
             Refresh();
         }
 
-        private void StopAndSave()
+        private void StopAndSave() => _busyWork = StopAndSaveAsync();
+
+        private async Task StopAndSaveAsync()
         {
+            if (_isBusy)
+                return;
             if (IsCapturing)
             {
                 _controller.Stop();
                 _participants.Stop();
             }
             Refresh();
-            // Stop = finish this scribe: after a successful save, clear the window for the next one.
-            if (HasContent && Save())
+            if (!HasContent)
+                return;
+            if (await SaveAsync())
             {
                 _controller.ClearTranscript();
                 _participants.Reset();
@@ -184,6 +200,8 @@ namespace CaptionScribe.ViewModels
 
         private void NewScribe()
         {
+            if (_isBusy)
+                return;
             ResetTranscript(
                 _dialogs.ConfirmOkCancel("New Scribe",
                     "Start a new scribe? The current transcript will be cleared.\n" +
@@ -192,6 +210,8 @@ namespace CaptionScribe.ViewModels
 
         private void Clear()
         {
+            if (_isBusy)
+                return;
             ResetTranscript(
                 _dialogs.ConfirmYesNo("Clear",
                     "Are you sure you want to clear the current transcript?\n" +
@@ -208,6 +228,8 @@ namespace CaptionScribe.ViewModels
 
         private void Copy()
         {
+            if (_isBusy)
+                return;
             var text = _controller.GetTranscriptText();
             if (string.IsNullOrEmpty(text))
                 return;
@@ -215,63 +237,88 @@ namespace CaptionScribe.ViewModels
                 _dialogs.Info("Copy", "Could not copy the transcript to the clipboard.");
         }
 
-        private bool Save()
+        private void Save() => _busyWork = SaveAsync();
+
+        internal async Task<bool> SaveAsync()
         {
-            var cleanup = _dialogs.AskSaveCleanup();
-            if (cleanup is null)
+            if (Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
                 return false;
 
-            var title = _dialogs.PromptMeetingTitle();
-            if (title is null)
-                return false;
-
-            // Meeting start time; ':' is illegal in file names, so HH-mm is used.
-            var started = _controller.SessionStartedAt ?? DateTime.Now;
-            var stamp = started.ToString("yyyy-MM-dd-'Meeting'-HH-mm");
-            var safe = SanitizeFileName(title.Trim());
-            var suggested = string.IsNullOrWhiteSpace(safe) ? $"{stamp}.txt" : $"{stamp}-{safe}.txt";
-
-            var path = _dialogs.PickSaveFile(suggested, _settings.DefaultSaveDirectory);
-            if (path is null)
-                return false;
-
-            var text = BuildTranscriptToSave(cleanup.Value);
             try
             {
-                _fileWriter.Write(path, text);
-            }
-            catch (Exception ex)
-            {
-                _dialogs.Info("Save failed", ex.Message);
-                return false;
-            }
+                var cleanup = _dialogs.AskSaveCleanup();
+                if (cleanup is null)
+                    return false;
 
-            TryWriteParticipantsImage(path, title.Trim(), started);
-            return true;
+                var title = _dialogs.PromptMeetingTitle();
+                if (title is null)
+                    return false;
+
+                var started = _controller.SessionStartedAt ?? DateTime.Now;
+                var stamp = started.ToString("yyyy-MM-dd-'Meeting'-HH-mm");
+                var safe = SanitizeFileName(title.Trim());
+                var suggested = string.IsNullOrWhiteSpace(safe) ? $"{stamp}.txt" : $"{stamp}-{safe}.txt";
+
+                var path = _dialogs.PickSaveFile(suggested, _settings.DefaultSaveDirectory);
+                if (path is null)
+                    return false;
+
+                SetBusy(true, "Saving transcript…");
+                try
+                {
+                    bool timestamps = _settings.ShowTimestamps;
+                    bool perTurn = _settings.TimestampsPerTurn;
+                    var cleanupMode = cleanup.Value;
+                    try
+                    {
+                        await Task.Run(() =>
+                        {
+                            string text = BuildTranscriptToSave(cleanupMode, timestamps, perTurn);
+                            _fileWriter.Write(path, text);
+                        }).ConfigureAwait(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        _dialogs.Info("Save failed", ex.Message);
+                        return false;
+                    }
+
+                    await WriteParticipantsImageAsync(path, title.Trim(), started).ConfigureAwait(true);
+                    return true;
+                }
+                finally
+                {
+                    SetBusy(false);
+                    Refresh();
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _saveGate, 0);
+            }
         }
 
         // Renders the transcript for saving: cleaned-up, timestamped, or plain per the current settings.
-        private string BuildTranscriptToSave(SaveCleanup cleanup)
+        private string BuildTranscriptToSave(SaveCleanup cleanup, bool timestamps, bool perTurn)
         {
             if (cleanup == SaveCleanup.Clean)
-                return TranscriptCleaner.Clean(_controller.GetTimedTranscript(), _settings.ShowTimestamps, _settings.TimestampsPerTurn);
-            if (_settings.ShowTimestamps)
-                return TranscriptFormatter.Format(_controller.GetTimedTranscript(), true, _settings.TimestampsPerTurn);
+                return TranscriptCleaner.Clean(_controller.GetTimedTranscript(), timestamps, perTurn);
+            if (timestamps)
+                return TranscriptFormatter.Format(_controller.GetTimedTranscript(), true, perTurn);
             return _controller.GetTranscriptText();
         }
 
-        // POC: emit a participants PNG (avatars + names) next to the saved transcript.
-        private void TryWriteParticipantsImage(string transcriptPath, string meetingTitle, DateTime started)
+        private async Task WriteParticipantsImageAsync(string transcriptPath, string meetingTitle, DateTime started)
         {
             if (!_settings.EnableParticipantCapture || _participants.Count == 0)
                 return;
+            int count = _participants.Count;
+            var pngPath = Path.ChangeExtension(transcriptPath, null) + "-Participants.png";
+            var header = $"{meetingTitle} — {started:yyyy-MM-dd} — {started:HH:mm}\n" +
+                         $"{count} participant{(count == 1 ? "" : "s")}";
             try
             {
-                int count = _participants.Count;
-                var pngPath = Path.ChangeExtension(transcriptPath, null) + "-Participants.png";
-                var header = $"{meetingTitle} — {started:yyyy-MM-dd} — {started:HH:mm}\n" +
-                             $"{count} participant{(count == 1 ? "" : "s")}";
-                _participants.WriteImage(pngPath, header);
+                await Task.Run(() => _participants.WriteImage(pngPath, header)).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -279,8 +326,23 @@ namespace CaptionScribe.ViewModels
             }
         }
 
+        private void SetBusy(bool busy, string message = "")
+        {
+            _isBusy = busy;
+            _busyMessage = busy ? message : "";
+            OnPropertyChanged(nameof(IsBusy));
+            OnPropertyChanged(nameof(BusyMessage));
+            OnPropertyChanged(nameof(IsUiEnabled));
+            OnPropertyChanged(nameof(ShowIdleOverlay));
+            if (busy)
+                StatusText = message;
+            CommandManager.InvalidateRequerySuggested();
+        }
+
         private void Highlight()
         {
+            if (_isBusy)
+                return;
             if (_settings.Region is CaptureRegion region)
                 _regions.HighlightRegion(region);
             else
@@ -289,6 +351,8 @@ namespace CaptionScribe.ViewModels
 
         private void SelectRegion()
         {
+            if (_isBusy)
+                return;
             if (_regions.SelectRegion() is not CaptureRegion region)
                 return;
 
@@ -300,10 +364,16 @@ namespace CaptionScribe.ViewModels
         }
 
         private void ShowCaptureDiagnostics()
-            => _dialogs.Info("Caption Scribe — Capture Diagnostics", _controller.GetCaptureDiagnostics());
+        {
+            if (_isBusy)
+                return;
+            _dialogs.Info("Caption Scribe — Capture Diagnostics", _controller.GetCaptureDiagnostics());
+        }
 
         private void OpenSettings()
         {
+            if (_isBusy)
+                return;
             if (!_dialogs.ShowSettings(_settings))
                 return;
 
@@ -349,6 +419,8 @@ namespace CaptionScribe.ViewModels
 
         private void Refresh()
         {
+            if (_isBusy)
+                return;
             TranscriptText = BuildDisplayText();
             StatusText = _controller.IsRunning
                 ? "Capturing… Press Spacebar to Pause."

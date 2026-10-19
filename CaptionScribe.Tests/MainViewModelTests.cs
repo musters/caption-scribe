@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using CaptionScribe.Models;
 using CaptionScribe.ViewModels;
 using Xunit;
@@ -23,6 +24,8 @@ namespace CaptionScribe.Tests
         }
 
         private static CaptureRegion SomeRegion() => new() { X = 0, Y = 0, Width = 20, Height = 10 };
+
+        private static Task AwaitBusy(MainViewModel vm) => vm.BusyWork;
 
         // ---- command availability ----
 
@@ -318,7 +321,7 @@ namespace CaptionScribe.Tests
         // ---- save ----
 
         [Fact]
-        public void Save_AsIs_WritesTranscriptText_ToThePickedPath()
+        public async Task Save_AsIs_WritesTranscriptText_ToThePickedPath()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptText = "line one\nline two";
@@ -327,6 +330,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Files.Writes);
             Assert.Equal(@"C:\out\meeting.txt", ctx.Files.LastPath);
@@ -334,7 +338,7 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void Save_SuggestsAStampedFileName_FromSessionStartAndTitle()
+        public async Task Save_SuggestsAStampedFileName_FromSessionStartAndTitle()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptLineCount = 1;
@@ -344,12 +348,13 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal("2026-08-26-Meeting-09-30-Weekly Sync.txt", ctx.Dialogs.LastSuggestedFileName);
         }
 
         [Fact]
-        public void Save_CancelledAtFilePicker_WritesNothing()
+        public async Task Save_CancelledAtFilePicker_WritesNothing()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptLineCount = 1;
@@ -357,12 +362,13 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(0, ctx.Files.Writes);
         }
 
         [Fact]
-        public void Save_CancelledAtCleanupPrompt_WritesNothing()
+        public async Task Save_CancelledAtCleanupPrompt_WritesNothing()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptLineCount = 1;
@@ -370,12 +376,13 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(0, ctx.Files.Writes);
         }
 
         [Fact]
-        public void Stop_AfterSuccessfulSave_ClearsTranscript_AndStaysInactive()
+        public async Task Stop_AfterSuccessfulSave_ClearsTranscript_AndStaysInactive()
         {
             var ctx = new Ctx();
             ctx.Controller.IsRunning = true;
@@ -384,6 +391,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.StopCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Controller.StopCalls);
             Assert.Equal(1, ctx.Files.Writes);
@@ -392,7 +400,7 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void Stop_WhenSaveCancelled_DoesNotClear()
+        public async Task Stop_WhenSaveCancelled_DoesNotClear()
         {
             var ctx = new Ctx();
             ctx.Controller.IsRunning = true;
@@ -401,6 +409,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.StopCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Controller.StopCalls);
             Assert.Equal(0, ctx.Files.Writes);
@@ -408,7 +417,7 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void Save_DuringCapture_WritesButDoesNotStopOrClear()
+        public async Task Save_DuringCapture_WritesButDoesNotStopOrClear()
         {
             var ctx = new Ctx();
             ctx.Controller.IsRunning = true;
@@ -417,6 +426,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Files.Writes);
             Assert.Equal(0, ctx.Controller.StopCalls);
@@ -452,7 +462,7 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void Save_WithParticipants_WritesParticipantsImage_NextToTranscript()
+        public async Task Save_WithParticipants_WritesParticipantsImage_NextToTranscript()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptLineCount = 2;
@@ -464,6 +474,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Participants.WriteCalls);
             Assert.Equal(@"C:\out\meeting-Participants.png", ctx.Participants.LastPath);
@@ -473,7 +484,7 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void Save_WithNoParticipants_WritesNoImage()
+        public async Task Save_WithNoParticipants_WritesNoImage()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptLineCount = 2;
@@ -482,6 +493,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Files.Writes);
             Assert.Equal(0, ctx.Participants.WriteCalls);
@@ -500,7 +512,7 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
-        public void Save_DoesNotWriteParticipantsImage_WhenFeatureDisabled()
+        public async Task Save_DoesNotWriteParticipantsImage_WhenFeatureDisabled()
         {
             var ctx = new Ctx();
             ctx.Controller.TranscriptLineCount = 2;
@@ -509,13 +521,14 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Files.Writes);
             Assert.Equal(0, ctx.Participants.WriteCalls);
         }
 
         [Fact]
-        public void Stop_AfterSuccessfulSave_ResetsParticipants()
+        public async Task Stop_AfterSuccessfulSave_ResetsParticipants()
         {
             var ctx = new Ctx();
             ctx.Controller.IsRunning = true;
@@ -524,6 +537,7 @@ namespace CaptionScribe.Tests
             var vm = ctx.Build();
 
             vm.StopCommand.Execute(null);
+            await AwaitBusy(vm);
 
             Assert.Equal(1, ctx.Participants.StopCalls);
             Assert.Equal(1, ctx.Participants.ResetCalls);

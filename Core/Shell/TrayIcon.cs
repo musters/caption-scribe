@@ -71,14 +71,34 @@ namespace CaptionScribe.Core.Shell
             SetActive(false);
         }
 
+        private bool _capturing;
+        private bool _busy;
+
         public void SetActive(bool capturing)
         {
-            _playItem.Enabled = !capturing;
-            _pauseItem.Enabled = capturing;
-            _stopItem.Enabled = capturing;
-            _newScribeItem.Enabled = !capturing;
-            _notifyIcon.Icon = capturing ? _activeIcon : _inactiveIcon;
-            _notifyIcon.Text = capturing ? "Caption Scribe - capturing" : "Caption Scribe - idle";
+            _capturing = capturing;
+            if (!_busy)
+            {
+                _notifyIcon.Icon = capturing ? _activeIcon : _inactiveIcon;
+                _notifyIcon.Text = capturing ? "Caption Scribe - capturing" : "Caption Scribe - idle";
+            }
+            ApplyMenuState();
+        }
+
+        public void SetBusy(bool busy)
+        {
+            _busy = busy;
+            ApplyMenuState();
+        }
+
+        private void ApplyMenuState()
+        {
+            bool idle = !_capturing && !_busy;
+            bool live = _capturing && !_busy;
+            _playItem.Enabled = idle;
+            _pauseItem.Enabled = live;
+            _stopItem.Enabled = live;
+            _newScribeItem.Enabled = idle;
         }
 
         public void ShowBalloon(string message, WinForms.ToolTipIcon icon, string title = "Caption Scribe")

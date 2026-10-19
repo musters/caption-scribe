@@ -31,7 +31,7 @@
                     <ListItem><Paragraph><Bold>Play / Pause</Bold> (triangle / bars) — start or pause capturing.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Stop</Bold> (square) — stop capturing, then save.</Paragraph></ListItem>
                 </List>
-                <Paragraph Foreground="#666666" Margin="0,0,0,4">Save, Clear and Copy stay greyed until there's something to act on. New Scribe is unavailable while capturing. Pause and Stop are available only while capturing.</Paragraph>
+                <Paragraph Foreground="#666666" Margin="0,0,0,4">Save, Clear and Copy stay greyed until there's something to act on. New Scribe is unavailable while capturing. Pause and Stop are available only while capturing. Saving a long transcript runs in the background; the window shows a progress bar and stays disabled until it finishes.</Paragraph>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Keyboard and mouse</Paragraph>
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">

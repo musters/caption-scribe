@@ -59,7 +59,8 @@
     </Window.Resources>
     <DockPanel>
         <DockPanel DockPanel.Dock="Top" Background="#F0F0F0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0"
+                        IsEnabled="{Binding IsUiEnabled}">
                 <Button Style="{StaticResource ToolButton}" ToolTip="Highlight Capture Region — briefly outline it on screen" Command="{Binding HighlightCommand}">
                     <Path Data="{StaticResource IconHighlight}" Stretch="Uniform" Width="16" Height="16"
                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
@@ -108,7 +109,8 @@
                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
                 </Button>
             </StackPanel>
-            <Menu DockPanel.Dock="Left" Background="Transparent" FontSize="14">
+            <Menu DockPanel.Dock="Left" Background="Transparent" FontSize="14"
+                  IsEnabled="{Binding IsUiEnabled}">
             <MenuItem Header="_File">
                 <MenuItem Header="_New Scribe" Command="{Binding NewScribeCommand}" />
                 <MenuItem Header="_Save Scribe" Command="{Binding SaveCommand}" />
@@ -141,18 +143,24 @@
                        MouseLeftButtonUp="OnRegionTextClick" />
         </DockPanel>
 
-        <Grid DockPanel.Dock="Bottom" Margin="8,4">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                <TextBlock Text="Capture Status: " VerticalAlignment="Center" Foreground="#555" />
-                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="#555" />
-            </StackPanel>
-            <CheckBox Content="Auto-scroll" IsChecked="{Binding AutoScroll, Mode=TwoWay}"
-                      HorizontalAlignment="Right" VerticalAlignment="Center" />
-        </Grid>
+        <StackPanel DockPanel.Dock="Bottom">
+            <ProgressBar Height="4" Margin="8,0,8,0" IsIndeterminate="True"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+            <Grid Margin="8,4">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <TextBlock Text="Capture Status: " VerticalAlignment="Center" Foreground="#555" />
+                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="#555" />
+                </StackPanel>
+                <CheckBox Content="Auto-scroll" IsChecked="{Binding AutoScroll, Mode=TwoWay}"
+                          IsEnabled="{Binding IsUiEnabled}"
+                          HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+        </StackPanel>
 
         <Grid Margin="8,0,8,4">
             <Border BorderBrush="#DDD" BorderThickness="1">
                 <TextBox x:Name="TranscriptBox" IsReadOnly="True" IsUndoEnabled="False"
+                         IsEnabled="{Binding IsUiEnabled}"
                          Text="{Binding TranscriptText, Mode=OneWay}"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                          TextWrapping="Wrap" AcceptsReturn="True"

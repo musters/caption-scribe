@@ -279,6 +279,8 @@ namespace CaptionScribe
         {
             if (e.PropertyName is nameof(MainViewModel.IsCapturing) or nameof(MainViewModel.IsActive))
                 _tray.SetActive(_viewModel.IsCapturing);
+            else if (e.PropertyName is nameof(MainViewModel.IsBusy))
+                _tray.SetBusy(_viewModel.IsBusy);
         }
 
         private static bool Overlaps(Win32.RECT a, Win32.RECT b)
