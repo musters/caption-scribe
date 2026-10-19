@@ -93,7 +93,7 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0006 — Participant roster never expires 1-vote OCR junk
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
 **Where:** `Services/ParticipantRoster.cs`, `CaptureController` ~4 s `OnFrame` on the capture thread

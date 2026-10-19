@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -33,50 +34,71 @@ namespace CaptionScribe.Services
 
         // A name must be seen in at least this many samples to count, filtering one-frame OCR flukes.
         private const int MinVotesToInclude = 2;
+        private const int ProvisionalTtlSamples = 5;
+        private const int MaxRosterEntries = 48;
+        private const int MaxObserveMs = 50;
 
         private readonly object _gate = new();
         private readonly List<Entry> _entries = new();
+        private int _sampleIndex;
 
         private sealed class Entry
         {
             public byte[] Avatar = Array.Empty<byte>();
             public readonly Dictionary<string, int> NameVotes = new(StringComparer.OrdinalIgnoreCase);
-            public string BestName => NameVotes.OrderByDescending(kv => kv.Value).First().Key;
+            public int LastSeenSample;
+            private string? _bestName;
+            public string BestName => _bestName ??= NameVotes.OrderByDescending(kv => kv.Value).First().Key;
             public int TotalVotes => NameVotes.Values.Sum();
+            public void InvalidateBestName() => _bestName = null;
         }
 
         public int Count { get { lock (_gate) return _entries.Count(e => e.TotalVotes >= MinVotesToInclude); } }
 
-        public void Clear() { lock (_gate) _entries.Clear(); }
+        public void Clear()
+        {
+            lock (_gate)
+            {
+                _entries.Clear();
+                _sampleIndex = 0;
+            }
+        }
 
         /// <summary>Scans a color frame's OCR lines, adding/updating participants for name-shaped lines.</summary>
         public void Observe(Bitmap frame, IReadOnlyList<RecognizedLine> lines)
         {
             lock (_gate)
             {
+                _sampleIndex++;
+                var clock = Stopwatch.StartNew();
                 foreach (var line in lines)
                 {
+                    if (clock.ElapsedMilliseconds >= MaxObserveMs)
+                        break;
                     if (!SpeakerHeuristics.LooksLikeName(line.Text) || !IsLikelyPersonName(line.Text))
                         continue;
                     var existing = Find(line.Text);
                     if (existing is not null)
                     {
                         existing.NameVotes[line.Text] = existing.NameVotes.GetValueOrDefault(line.Text) + 1;
-                        if (existing.Avatar.Length == 0)
+                        existing.InvalidateBestName();
+                        existing.LastSeenSample = _sampleIndex;
+                        if (existing.TotalVotes >= MinVotesToInclude && existing.Avatar.Length == 0)
                         {
                             var filled = CropAvatar(frame, line);
                             if (filled.Length > 0)
                                 existing.Avatar = filled;
+                            else if (existing.TotalVotes == MinVotesToInclude)
+                                _entries.Remove(existing);
                         }
                         continue;
                     }
-                    var avatar = CropAvatar(frame, line);
-                    if (avatar.Length == 0)
-                        continue;
-                    var entry = new Entry { Avatar = avatar };
+                    var entry = new Entry { LastSeenSample = _sampleIndex };
                     entry.NameVotes[line.Text] = 1;
                     _entries.Add(entry);
                 }
+                ExpireProvisional();
+                EnforceCap();
             }
         }
 
@@ -87,6 +109,24 @@ namespace CaptionScribe.Services
                     .Where(e => e.TotalVotes >= MinVotesToInclude)
                     .Select(e => new Participant { Name = e.BestName, AvatarPng = e.Avatar })
                     .ToList();
+        }
+
+        private void ExpireProvisional()
+        {
+            _entries.RemoveAll(e =>
+                e.TotalVotes < MinVotesToInclude &&
+                _sampleIndex - e.LastSeenSample >= ProvisionalTtlSamples);
+        }
+
+        private void EnforceCap()
+        {
+            while (_entries.Count > MaxRosterEntries)
+            {
+                int drop = _entries.FindIndex(e => e.TotalVotes < MinVotesToInclude);
+                if (drop < 0)
+                    drop = 0;
+                _entries.RemoveAt(drop);
+            }
         }
 
         private Entry? Find(string name)

@@ -117,6 +117,23 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void Observe_ExpiresOneVoteNames_AfterSeveralSamplesWithoutASecondSighting()
+        {
+            var roster = new ParticipantRoster();
+            using var frame = Frame();
+
+            roster.Observe(frame, new List<RecognizedLine> { NameLine("Zippy Zapp") });
+            for (int i = 0; i < 5; i++)
+                roster.Observe(frame, new List<RecognizedLine> { NameLine($"Ada Placeholder{i}", y: 40) });
+
+            roster.Observe(frame, new List<RecognizedLine> { NameLine("Zippy Zapp") });
+            Assert.Equal(0, roster.Count);
+
+            roster.Observe(frame, new List<RecognizedLine> { NameLine("Zippy Zapp") });
+            Assert.Equal(1, roster.Count);
+        }
+
+        [Fact]
         public void Observe_RequiresAtLeastTwoSightings()
         {
             var roster = new ParticipantRoster();
