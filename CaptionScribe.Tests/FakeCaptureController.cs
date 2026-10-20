@@ -13,6 +13,9 @@ namespace CaptionScribe.Tests
         public event EventHandler? CaptureStateChanged;
 
         public bool IsRunning { get; set; }
+        public bool IsAudioCapturing { get; set; }
+        public bool AudioFailed { get; set; }
+        public float AudioLevel { get; set; }
         public int TranscriptLineCount { get; set; }
         public string AutoSavePath { get; set; } = @"C:\autosave\scribe.txt";
         public DateTime? SessionStartedAt { get; set; }
@@ -21,11 +24,14 @@ namespace CaptionScribe.Tests
         public int StopCalls { get; private set; }
         public int ClearCalls { get; private set; }
         public int ApplySettingsCalls { get; private set; }
+        public int FlushAudioForExportCalls { get; private set; }
         public CaptureRegion? UpdatedRegion { get; private set; }
 
         public string TranscriptText { get; set; } = "";
         public IReadOnlyList<TimedLine> TimedLines { get; set; } = Array.Empty<TimedLine>();
         public string CaptureDiagnostics { get; set; } = "diagnostics report";
+        public string? AudioWavPath { get; set; }
+        public string? MicWavPath { get; set; }
 
         public void Start() { StartCalls++; IsRunning = true; }
         public void Stop() { StopCalls++; IsRunning = false; }
@@ -38,7 +44,8 @@ namespace CaptionScribe.Tests
         public IReadOnlyList<TimedLine> GetTimedTranscript() => TimedLines;
         public IReadOnlyList<TimedLine> GetTimedTail(int maxLines) => TimedLines;
         public TranscriptSnapshot GetExportSnapshot()
-            => new(TimedLines, TranscriptText, SessionStartedAt ?? DateTime.Now);
+            => new(TimedLines, TranscriptText, SessionStartedAt ?? DateTime.Now, AudioWavPath, MicWavPath);
+        public void FlushAudioForExport() => FlushAudioForExportCalls++;
         public string GetCaptureDiagnostics() => CaptureDiagnostics;
 
         public void RaiseTranscriptUpdated() => TranscriptUpdated?.Invoke(this, EventArgs.Empty);

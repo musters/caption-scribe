@@ -42,6 +42,8 @@ namespace CaptionScribe.ViewModels
         private string _autoSavePromptThreshold;
         private bool _autoDeleteOldAutoSaves;
         private bool _enableParticipantCapture;
+        private bool _enableCaptureAudio;
+        private bool _enableMicrophoneCapture;
         private bool _runOnStartup;
 
         /// <summary>Raised with the dialog result when the user saves; the view closes accordingly.</summary>
@@ -74,6 +76,8 @@ namespace CaptionScribe.ViewModels
             _autoSavePromptThreshold = Str(settings.AutoSavePromptThreshold);
             _autoDeleteOldAutoSaves = settings.AutoDeleteOldAutoSaves;
             _enableParticipantCapture = settings.EnableParticipantCapture;
+            _enableCaptureAudio = settings.EnableCaptureAudio;
+            _enableMicrophoneCapture = settings.EnableMicrophoneCapture;
             _startupEnabledAtOpen = startup.IsEnabled();
             _runOnStartup = _startupEnabledAtOpen;
 
@@ -142,6 +146,8 @@ namespace CaptionScribe.ViewModels
         }
         public bool AutoDeleteOldAutoSaves { get => _autoDeleteOldAutoSaves; set => Set(ref _autoDeleteOldAutoSaves, value); }
         public bool EnableParticipantCapture { get => _enableParticipantCapture; set => Set(ref _enableParticipantCapture, value); }
+        public bool EnableCaptureAudio { get => _enableCaptureAudio; set => Set(ref _enableCaptureAudio, value); }
+        public bool EnableMicrophoneCapture { get => _enableMicrophoneCapture; set => Set(ref _enableMicrophoneCapture, value); }
         public bool RunOnStartup { get => _runOnStartup; set => Set(ref _runOnStartup, value); }
 
         // True when any field differs from the saved settings (Save stays disabled until then).
@@ -164,6 +170,8 @@ namespace CaptionScribe.ViewModels
             || _autoSavePromptThreshold != Str(_settings.AutoSavePromptThreshold)
             || _autoDeleteOldAutoSaves != _settings.AutoDeleteOldAutoSaves
             || _enableParticipantCapture != _settings.EnableParticipantCapture
+            || _enableCaptureAudio != _settings.EnableCaptureAudio
+            || _enableMicrophoneCapture != _settings.EnableMicrophoneCapture
             || _runOnStartup != _startupEnabledAtOpen;
 
         // ---- INotifyDataErrorInfo ----
@@ -188,14 +196,15 @@ namespace CaptionScribe.ViewModels
         {
             var dir = TranscriptAutoSaver.DirectoryFor(AutoSaveDir);
             if (!_dialogs.ConfirmYesNo("Clear autosave folder",
-                    $"Delete all autosaved transcripts in:\n{dir}\n\nThis cannot be undone."))
+                    $"Delete all autosaved transcripts and audio in:\n{dir}\n\nThis cannot be undone."))
                 return;
 
-            int removed = TranscriptAutoSaver.ClearDirectory(AutoSaveDir);
+            int removed = TranscriptAutoSaver.ClearDirectory(AutoSaveDir)
+                + AudioAutoSave.ClearDirectory(AutoSaveDir);
             _dialogs.Info("Autosave folder",
                 removed == 0
-                    ? "There were no autosaved transcripts to remove."
-                    : $"Removed {removed} autosaved transcript{(removed == 1 ? "" : "s")}.");
+                    ? "There were no autosaved files to remove."
+                    : $"Removed {removed} autosaved file{(removed == 1 ? "" : "s")}.");
         }
 
         // Fills the Teams title hint from the current Teams window; isolated, not gated by the focus-switch flag.
@@ -265,6 +274,8 @@ namespace CaptionScribe.ViewModels
             _settings.AutoSavePromptThreshold = Int(AutoSavePromptThreshold);
             _settings.AutoDeleteOldAutoSaves = AutoDeleteOldAutoSaves;
             _settings.EnableParticipantCapture = EnableParticipantCapture;
+            _settings.EnableCaptureAudio = EnableCaptureAudio;
+            _settings.EnableMicrophoneCapture = EnableMicrophoneCapture;
 
             CloseRequested?.Invoke(this, true);
         }

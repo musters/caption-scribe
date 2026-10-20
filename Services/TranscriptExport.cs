@@ -8,16 +8,21 @@ namespace CaptionScribe.Services
     /// <summary>Builds save file names and transcript text for export (cleanup / timestamps / plain).</summary>
     public readonly struct TranscriptSnapshot
     {
-        public TranscriptSnapshot(IReadOnlyList<TimedLine> timed, string plain, DateTime startedAt)
+        public TranscriptSnapshot(IReadOnlyList<TimedLine> timed, string plain, DateTime startedAt,
+            string? audioWavPath = null, string? micWavPath = null)
         {
             Timed = timed;
             Plain = plain;
             StartedAt = startedAt;
+            AudioWavPath = audioWavPath;
+            MicWavPath = micWavPath;
         }
 
         public IReadOnlyList<TimedLine> Timed { get; }
         public string Plain { get; }
         public DateTime StartedAt { get; }
+        public string? AudioWavPath { get; }
+        public string? MicWavPath { get; }
     }
 
     public static class TranscriptExport

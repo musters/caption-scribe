@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using CaptionScribe.Models;
+using CaptionScribe.Services;
 using CaptionScribe.ViewModels;
 using Xunit;
 
@@ -458,6 +460,71 @@ namespace CaptionScribe.Tests
             await AwaitBusy(vm);
 
             Assert.Equal("2026-08-26-Meeting-09-30-Weekly Sync.txt", ctx.Dialogs.LastSuggestedFileName);
+            Assert.Equal(false, ctx.Dialogs.LastOfferFolderGroup);
+        }
+
+        [Fact]
+        public async Task Save_WithUsefulAudio_OffersFolderGroup_AndWritesAudioBesideTranscript()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeSaveAudio", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                string wav = Path.Combine(dir, "scribe-1.wav");
+                using (var writer = new PcmWavWriter(wav, 8000, 1))
+                    writer.Write(new byte[800]);
+
+                var ctx = new Ctx();
+                ctx.Controller.TranscriptText = "hi";
+                ctx.Controller.TranscriptLineCount = 1;
+                ctx.Controller.AudioWavPath = wav;
+                ctx.Dialogs.GroupInFolderResult = false;
+                ctx.Dialogs.SaveFilePathResult = Path.Combine(dir, "meeting.txt");
+                var vm = ctx.Build();
+
+                vm.SaveCommand.Execute(null);
+                await AwaitBusy(vm);
+
+                Assert.Equal(true, ctx.Dialogs.LastOfferFolderGroup);
+                Assert.True(
+                    File.Exists(Path.Combine(dir, "meeting.mp3")) ||
+                    File.Exists(Path.Combine(dir, "meeting.m4a")) ||
+                    File.Exists(Path.Combine(dir, "meeting.wav")));
+            }
+            finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
+        }
+
+        [Fact]
+        public async Task Save_WithAudio_WhenFolderGroupChecked_WritesIntoMeetingFolder()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeSaveFolder", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                string wav = Path.Combine(dir, "scribe-1.wav");
+                using (var writer = new PcmWavWriter(wav, 8000, 1))
+                    writer.Write(new byte[800]);
+
+                var ctx = new Ctx();
+                ctx.Controller.TranscriptLineCount = 1;
+                ctx.Controller.SessionStartedAt = new DateTime(2026, 8, 26, 9, 30, 0);
+                ctx.Controller.AudioWavPath = wav;
+                ctx.Dialogs.MeetingTitleResult = "Weekly Sync";
+                ctx.Dialogs.GroupInFolderResult = true;
+                ctx.Dialogs.SaveFilePathResult = Path.Combine(dir, "meeting.txt");
+                var vm = ctx.Build();
+
+                vm.SaveCommand.Execute(null);
+                await AwaitBusy(vm);
+
+                string folder = Path.Combine(dir, "2026-08-26-Meeting-09-30-Weekly Sync");
+                Assert.Equal(Path.Combine(folder, "meeting.txt"), ctx.Files.LastPath);
+                Assert.True(
+                    File.Exists(Path.Combine(folder, "meeting.mp3")) ||
+                    File.Exists(Path.Combine(folder, "meeting.m4a")) ||
+                    File.Exists(Path.Combine(folder, "meeting.wav")));
+            }
+            finally { try { Directory.Delete(dir, recursive: true); } catch { /* best-effort */ } }
         }
 
         [Fact]
@@ -690,6 +757,67 @@ namespace CaptionScribe.Tests
 
             vm.EnableParticipantCapture = false;
             Assert.Equal(1, ctx.Participants.StopCalls);
+        }
+
+        [Fact]
+        public void EnableCaptureAudio_Setter_SavesAndAppliesSettings()
+        {
+            var ctx = new Ctx();
+            ctx.Controller.IsRunning = true;
+            var vm = ctx.Build();
+
+            vm.EnableCaptureAudio = true;
+
+            Assert.True(ctx.Settings.EnableCaptureAudio);
+            Assert.True(ctx.SettingsService.SaveCalls >= 1);
+            Assert.Equal(1, ctx.Controller.ApplySettingsCalls);
+
+            vm.EnableCaptureAudio = false;
+            Assert.False(ctx.Settings.EnableCaptureAudio);
+            Assert.Equal(2, ctx.Controller.ApplySettingsCalls);
+        }
+
+        [Fact]
+        public void Status_WhileCapturingWithoutAudio_IsCaptionsOnly()
+        {
+            var ctx = new Ctx();
+            ctx.Settings.Region = SomeRegion();
+            ctx.Controller.IsRunning = true;
+            var vm = ctx.Build();
+
+            Assert.Equal("Capturing… Press Spacebar to Pause.", vm.StatusText);
+            Assert.False(vm.IsAudioMeterVisible);
+            Assert.False(vm.IsAudioMeterLive);
+        }
+
+        [Fact]
+        public void Status_WhileCapturingWithAudio_MentionsAudio_AndShowsLiveMeter()
+        {
+            var ctx = new Ctx();
+            ctx.Settings.Region = SomeRegion();
+            ctx.Settings.EnableCaptureAudio = true;
+            ctx.Controller.IsRunning = true;
+            ctx.Controller.IsAudioCapturing = true;
+            var vm = ctx.Build();
+
+            Assert.Equal("Capturing captions and audio… Press Spacebar to Pause.", vm.StatusText);
+            Assert.True(vm.IsAudioMeterVisible);
+            Assert.True(vm.IsAudioMeterLive);
+        }
+
+        [Fact]
+        public void Status_WhenAudioEnabledButFailed_SaysUnavailable_MeterStill()
+        {
+            var ctx = new Ctx();
+            ctx.Settings.Region = SomeRegion();
+            ctx.Settings.EnableCaptureAudio = true;
+            ctx.Controller.IsRunning = true;
+            ctx.Controller.AudioFailed = true;
+            var vm = ctx.Build();
+
+            Assert.Equal("Capturing… Audio unavailable.", vm.StatusText);
+            Assert.True(vm.IsAudioMeterVisible);
+            Assert.False(vm.IsAudioMeterLive);
         }
 
         [Fact]

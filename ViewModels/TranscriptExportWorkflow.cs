@@ -69,19 +69,26 @@ namespace CaptionScribe.ViewModels
             try
             {
                 var snapshot = await Task.Run(() => _controller.GetExportSnapshot()).ConfigureAwait(true);
+                bool hasAudio = AudioExport.HasUsefulWav(snapshot.AudioWavPath)
+                    || AudioExport.HasUsefulWav(snapshot.MicWavPath);
+                bool hasParticipants = _settings.EnableParticipantCapture && _participants.Count > 0;
+                bool offerFolder = hasAudio || hasParticipants;
 
                 var cleanup = _dialogs.AskSaveCleanup();
                 if (cleanup is null)
                     return false;
 
-                var title = _dialogs.PromptMeetingTitle();
-                if (title is null)
+                var titleChoice = _dialogs.PromptMeetingTitle(offerFolder);
+                if (titleChoice is null)
                     return false;
 
-                var suggested = TranscriptExport.SuggestedFileName(snapshot.StartedAt, title);
+                var suggested = TranscriptExport.SuggestedFileName(snapshot.StartedAt, titleChoice.Value.Title);
                 var path = _dialogs.PickSaveFile(suggested, _settings.DefaultSaveDirectory);
                 if (path is null)
                     return false;
+
+                if (titleChoice.Value.GroupInFolder && offerFolder)
+                    path = MoveIntoMeetingFolder(path, suggested);
 
                 bool timestamps = _settings.ShowTimestamps;
                 bool perTurn = _settings.TimestampsPerTurn;
@@ -100,7 +107,9 @@ namespace CaptionScribe.ViewModels
                     return false;
                 }
 
-                await WriteParticipantsImageAsync(path, title.Trim(), snapshot.StartedAt).ConfigureAwait(true);
+                await WriteParticipantsImageAsync(path, titleChoice.Value.Title.Trim(), snapshot.StartedAt).ConfigureAwait(true);
+                if (hasAudio)
+                    await WriteAudioAsync(snapshot.AudioWavPath, snapshot.MicWavPath, path).ConfigureAwait(true);
                 return true;
             }
             finally
@@ -108,6 +117,35 @@ namespace CaptionScribe.ViewModels
                 _setBusy(false, "");
                 _refresh();
                 Interlocked.Exchange(ref _saveGate, 0);
+            }
+        }
+
+        private static string MoveIntoMeetingFolder(string pickedPath, string suggestedFileName)
+        {
+            string? parent = Path.GetDirectoryName(pickedPath);
+            if (string.IsNullOrEmpty(parent))
+                return pickedPath;
+            string folder = Path.Combine(parent, Path.GetFileNameWithoutExtension(suggestedFileName));
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, Path.GetFileName(pickedPath));
+        }
+
+        private async Task WriteAudioAsync(string? wavPath, string? micWavPath, string transcriptPath)
+        {
+            string destBase = Path.Combine(
+                Path.GetDirectoryName(transcriptPath) ?? "",
+                Path.GetFileNameWithoutExtension(transcriptPath));
+            try
+            {
+                await Task.Run(() =>
+                {
+                    _controller.FlushAudioForExport();
+                    AudioExport.TrySaveListeningFile(wavPath, destBase, micWavPath);
+                }).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _dialogs.Info("Meeting audio", "Could not save the audio file: " + ex.Message);
             }
         }
 

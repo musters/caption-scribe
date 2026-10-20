@@ -12,7 +12,7 @@ render on screen.
 - **Live caption capture** — point it at a screen region and it OCRs the captions on an interval,
   de-duplicating and stitching the scrolling text into one continuous transcript.
 - **Timestamps** — optional, either per line or only at the start of each speaker's turn.
-- **Autosave** — periodically appends finalized lines to a rolling file, so a crash loses very little.
+- **Autosave** — periodically appends finalized lines to a rolling file, so a crash loses very little. The startup cache prompt shows combined transcript and audio size and appears above the configured file count or 1 GiB.
 - **Save & clean up** — export to `.txt`/`.md`, with an optional cleanup pass that fixes common OCR
   mistakes (e.g. `f`→`t` misreads) and collapses repeated speaker names.
 - **Region tools** — drag-select a capture region on any monitor, highlight it, and re-select quickly.
@@ -22,6 +22,11 @@ render on screen.
   double-click reuses the running instance.
 - **Participants image (experimental)** — optionally builds a PNG of meeting participants (avatar + name)
   from the captured region. Off by default; enable it under **Settings**.
+- **Meeting audio (experimental)** — optionally records meeting playback (Teams process loopback when the
+  Teams window is found, otherwise the default playback device) into a crash-safe WAV in the autosave folder.
+  Optional microphone recording is a separate stream (Windows may prompt for permission); denial does not stop
+  captions or loopback. Off by default. Status and a small meter show when audio is actually recording.
+  Stop/Save mixes to one MP3 (or M4A/WAV) next to the transcript and can group files in a meeting folder.
 - **No cloud dependencies** — capture, OCR, and storage all happen on this PC.
 
 ## Requirements
@@ -64,7 +69,7 @@ While capturing, the window shows the last 200 lines. **Show All Output** (when 
 Defaults live in [`appsettings.json`](appsettings.json); your changes are saved per-user under
 `%APPDATA%\CaptionScribe\settings.json`. Notable settings include run on startup (tray at Windows sign-in),
 the capture interval, upscale factor, OCR enhancement, timestamps, autosave interval/folder, default save
-folder, and the experimental participants capture.
+folder, the experimental participants capture, and experimental meeting-audio capture (off by default).
 
 ## Tests
 

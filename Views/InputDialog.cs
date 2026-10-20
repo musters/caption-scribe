@@ -7,10 +7,12 @@ namespace CaptionScribe.Views
     internal sealed class InputDialog : Window
     {
         private readonly TextBox _input;
+        private readonly CheckBox? _folderGroup;
 
         public string ResponseText => _input.Text;
+        public bool GroupInFolder => _folderGroup?.IsChecked == true;
 
-        public InputDialog(string prompt, string title, string defaultText = "")
+        public InputDialog(string prompt, string title, string defaultText = "", bool offerFolderGroup = false)
         {
             Title = title;
             Width = 420;
@@ -30,6 +32,17 @@ namespace CaptionScribe.Views
 
             _input = new TextBox { Text = defaultText };
             root.Children.Add(_input);
+
+            if (offerFolderGroup)
+            {
+                _folderGroup = new CheckBox
+                {
+                    Content = "Save all files in a folder named after this meeting",
+                    IsChecked = true,
+                    Margin = new Thickness(0, 10, 0, 0),
+                };
+                root.Children.Add(_folderGroup);
+            }
 
             var buttons = new StackPanel
             {

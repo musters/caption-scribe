@@ -22,6 +22,8 @@ namespace CaptionScribe.Services
 
         private readonly object _lifecycle = new();
         private readonly AutosaveScheduler _autosave;
+        private readonly LoopbackAudioSession _audio;
+        private readonly LoopbackAudioSession _mic;
         private volatile CancellationTokenSource? _cts;
         private Task? _loop;
         private volatile bool _running;
@@ -41,6 +43,9 @@ namespace CaptionScribe.Services
         public event EventHandler? CaptureStateChanged;
 
         public bool IsRunning => _running;
+        public bool IsAudioCapturing => (_audio.IsCapturing && !_audio.ApparentlySilent) || _mic.IsCapturing;
+        public bool AudioFailed => (_audio.Failed || _audio.ApparentlySilent) && !_mic.IsCapturing;
+        public float AudioLevel => _audio.Level > _mic.Level ? _audio.Level : _mic.Level;
         public bool OcrAvailable => _frames.OcrAvailable;
         public string AutoSavePath => _autosave.CurrentPath;
         public DateTime? SessionStartedAt => _sessionStartedAt;
@@ -58,6 +63,9 @@ namespace CaptionScribe.Services
             _autosave = new AutosaveScheduler(
                 new TranscriptAutoSaver(aggregator.GetLinesFrom, () => _settings.AutoSaveDirectory, log),
                 log);
+            _audio = new LoopbackAudioSession(log,
+                new WasapiLoopbackFactory(() => _windows.TryGetTeamsProcessId(_snapshot.TeamsWindowTitleHint), log));
+            _mic = new LoopbackAudioSession(log, new WasapiMicFactory(), "Microphone");
         }
 
         public void UpdateRegion(CaptureRegion region)
@@ -70,6 +78,13 @@ namespace CaptionScribe.Services
         {
             _snapshot = CaptureSettings.From(_settings);
             _frames.ApplySimilarity(_settings.SimilarityThreshold);
+            if (_running)
+                SyncAudio();
+            else
+            {
+                _audio.EnqueuePause();
+                _mic.EnqueuePause();
+            }
         }
 
         public void Start()
@@ -163,7 +178,24 @@ namespace CaptionScribe.Services
                 return;
             var interval = TimeSpan.FromMinutes(Math.Max(AppSettings.MinAutoSaveIntervalMinutes, _settings.AutoSaveIntervalMinutes));
             _autosave.EnqueueStart(interval, () => Volatile.Read(ref _lifecycleEpoch) == epoch && _running);
+            SyncAudio();
             _log.Info("Capture started.");
+        }
+
+        private void SyncAudio()
+        {
+            if (!_settings.EnableCaptureAudio)
+            {
+                _audio.EnqueuePause();
+                _mic.EnqueuePause();
+                return;
+            }
+            string txt = _autosave.CurrentPath;
+            _audio.EnqueueStart(AudioAutoSave.WavPathForTranscript(txt));
+            if (_settings.EnableMicrophoneCapture)
+                _mic.EnqueueStart(AudioAutoSave.MicWavPathForTranscript(txt));
+            else
+                _mic.EnqueuePause();
         }
 
         public void Stop()
@@ -181,6 +213,8 @@ namespace CaptionScribe.Services
             {
                 _log.Info("Capture stopped.");
                 _autosave.EnqueueStop();
+                _audio.EnqueuePause();
+                _mic.EnqueuePause();
             }
         }
 
@@ -242,7 +276,19 @@ namespace CaptionScribe.Services
         public TranscriptSnapshot GetExportSnapshot()
         {
             var (timed, plain) = _frames.GetExportSnapshot();
-            return new TranscriptSnapshot(timed, plain, _sessionStartedAt ?? DateTime.Now);
+            string? wav = _audio.SnapshotWavPath();
+            if (!AudioExport.HasUsefulWav(wav))
+                wav = null;
+            string? mic = _mic.SnapshotWavPath();
+            if (!AudioExport.HasUsefulWav(mic))
+                mic = null;
+            return new TranscriptSnapshot(timed, plain, _sessionStartedAt ?? DateTime.Now, wav, mic);
+        }
+
+        public void FlushAudioForExport()
+        {
+            _audio.FlushForSnapshot();
+            _mic.FlushForSnapshot();
         }
 
         public void ClearTranscript()
@@ -250,6 +296,8 @@ namespace CaptionScribe.Services
             _autosave.Flush(final: true);
             _frames.Clear();
             _autosave.Roll();
+            _audio.EnqueueClose();
+            _mic.EnqueueClose();
             _capture.ResetChangeDetection();
             _sessionStartedAt = _running ? DateTime.Now : null;
             _log.Info("Transcript cleared.");
@@ -266,6 +314,8 @@ namespace CaptionScribe.Services
             }
             JoinPending();
             _autosave.Dispose();
+            _audio.Dispose();
+            _mic.Dispose();
             _frames.Dispose();
             _capture.Dispose();
         }

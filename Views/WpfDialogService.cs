@@ -96,11 +96,14 @@ namespace CaptionScribe.Views
             return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.FileName : null;
         }
 
-        public string? PromptMeetingTitle()
+        public MeetingTitleChoice? PromptMeetingTitle(bool offerFolderGroup)
         {
-            var dialog = new InputDialog("Meeting title (used in the file name):", "Save Scribe");
+            var dialog = new InputDialog("Meeting title (used in the file name):", "Save Scribe",
+                offerFolderGroup: offerFolderGroup);
             Prepare(dialog);
-            return dialog.ShowDialog() == true ? dialog.ResponseText : null;
+            if (dialog.ShowDialog() != true)
+                return null;
+            return new MeetingTitleChoice(dialog.ResponseText, dialog.GroupInFolder);
         }
 
         public void ShowAbout(string autoSavePath)

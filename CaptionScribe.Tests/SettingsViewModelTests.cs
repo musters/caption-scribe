@@ -35,6 +35,35 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void TogglingEnableCaptureAudio_EnablesSave_AndApplies()
+        {
+            var settings = new AppSettings();
+            var vm = New(settings);
+            Assert.False(settings.EnableCaptureAudio);
+
+            vm.EnableCaptureAudio = true;
+            Assert.True(vm.SaveCommand.CanExecute(null));
+
+            vm.SaveCommand.Execute(null);
+
+            Assert.True(settings.EnableCaptureAudio);
+        }
+
+        [Fact]
+        public void TogglingEnableMicrophoneCapture_EnablesSave_AndApplies()
+        {
+            var settings = new AppSettings();
+            var vm = New(settings);
+
+            vm.EnableMicrophoneCapture = true;
+            Assert.True(vm.SaveCommand.CanExecute(null));
+
+            vm.SaveCommand.Execute(null);
+
+            Assert.True(settings.EnableMicrophoneCapture);
+        }
+
+        [Fact]
         public void ClearAutoSave_WhenCancelled_KeepsFiles()
         {
             var dir = Path.Combine(Path.GetTempPath(), "CaptionScribeVmClear", Guid.NewGuid().ToString("N"));

@@ -169,6 +169,15 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void TotalBytes_CountsOnlyScribeFiles()
+        {
+            Directory.CreateDirectory(_dir);
+            File.WriteAllText(Path.Combine(_dir, "scribe-1.txt"), "abc");
+            File.WriteAllText(Path.Combine(_dir, "notes.txt"), "unrelated");
+            Assert.Equal(3, TranscriptAutoSaver.TotalBytes(_dir));
+        }
+
+        [Fact]
         public void DeleteSavesOlderThan_RemovesOld_KeepsRecent()
         {
             Directory.CreateDirectory(_dir);

@@ -131,6 +131,7 @@
                 <MenuItem Header="Capture _Diagnostics…" Command="{Binding CaptureDiagnosticsCommand}" />
                 <Separator />
                 <MenuItem Header="Capture _Participants (experimental)" IsCheckable="True" IsChecked="{Binding EnableParticipantCapture, Mode=TwoWay}" />
+                <MenuItem Header="Capture _Audio (experimental)" IsCheckable="True" IsChecked="{Binding EnableCaptureAudio, Mode=TwoWay}" />
                 <MenuItem Header="_Settings" Command="{Binding SettingsCommand}" />
             </MenuItem>
             <MenuItem Header="_About">
@@ -147,13 +148,33 @@
             <ProgressBar Height="4" Margin="8,0,8,0" IsIndeterminate="True"
                          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
             <Grid Margin="8,4">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Capture Status: " VerticalAlignment="Center" Foreground="#555" />
                     <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="#555" />
                 </StackPanel>
-                <CheckBox Content="Auto-scroll" IsChecked="{Binding AutoScroll, Mode=TwoWay}"
+                <ProgressBar Grid.Column="1" Width="56" Height="8" Margin="12,0" Minimum="0" Maximum="1"
+                             Value="{Binding AudioLevel}"
+                             Visibility="{Binding IsAudioMeterVisible, Converter={StaticResource BoolToVis}}"
+                             ToolTip="Meeting audio level (live while recording)">
+                    <ProgressBar.Style>
+                        <Style TargetType="ProgressBar">
+                            <Setter Property="Opacity" Value="0.35" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAudioMeterLive}" Value="True">
+                                    <Setter Property="Opacity" Value="1" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ProgressBar.Style>
+                </ProgressBar>
+                <CheckBox Grid.Column="2" Content="Auto-scroll" IsChecked="{Binding AutoScroll, Mode=TwoWay}"
                           IsEnabled="{Binding IsUiEnabled}"
-                          HorizontalAlignment="Right" VerticalAlignment="Center" />
+                          VerticalAlignment="Center" />
             </Grid>
         </StackPanel>
 

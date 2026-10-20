@@ -40,6 +40,13 @@ namespace CaptionScribe.Services
             return best;
         }
 
+        /// <summary>PID of the best-matching Teams window, or 0 if none found.</summary>
+        public uint TryGetTeamsProcessId(string? titleHint)
+        {
+            IntPtr hWnd = FindTeamsWindow(titleHint);
+            return hWnd == IntPtr.Zero ? 0 : Win32.GetWindowProcessId(hWnd);
+        }
+
         /// <summary>True when the top-level window shown at the given screen point belongs to Teams.</summary>
         public bool IsTeamsAtPoint(int x, int y)
         {

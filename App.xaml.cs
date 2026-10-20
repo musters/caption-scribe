@@ -19,6 +19,8 @@ namespace CaptionScribe
 {
     public partial class App : Application, INotificationService
     {
+        private const long AutoSavePromptByteThreshold = 1L << 30;
+
         private CaptureController _controller = null!;
         private SettingsService _settingsService = null!;
         private AppSettings _settings = null!;
@@ -94,6 +96,14 @@ namespace CaptionScribe
         {
             try
             {
+                int wavRepaired = AudioAutoSave.RepairHeaders(_settings.AutoSaveDirectory);
+                if (wavRepaired > 0)
+                    _log.Info($"Repaired {wavRepaired} autosave audio header(s).");
+
+                int wavRemoved = AudioAutoSave.DeleteOlderThan(_settings.AutoSaveDirectory, AudioAutoSave.Retention);
+                if (wavRemoved > 0)
+                    _log.Info($"Deleted {wavRemoved} autosave audio file(s) older than 7 days.");
+
                 if (_settings.AutoDeleteOldAutoSaves)
                 {
                     int removed = TranscriptAutoSaver.DeleteSavesOlderThan(_settings.AutoSaveDirectory, TranscriptAutoSaver.DefaultRetention);
@@ -104,14 +114,18 @@ namespace CaptionScribe
                 if (!prompt)
                     return;
 
-                int count = TranscriptAutoSaver.CountSaves(_settings.AutoSaveDirectory);
-                if (count > _settings.AutoSavePromptThreshold &&
+                int count = TranscriptAutoSaver.CountSaves(_settings.AutoSaveDirectory)
+                    + AudioAutoSave.CountFiles(_settings.AutoSaveDirectory);
+                long totalBytes = TranscriptAutoSaver.TotalBytes(_settings.AutoSaveDirectory)
+                    + AudioAutoSave.TotalBytes(_settings.AutoSaveDirectory);
+                if ((count > _settings.AutoSavePromptThreshold || totalBytes >= AutoSavePromptByteThreshold) &&
                     dialogs.ConfirmYesNo("Autosave cache",
-                        $"The autosave folder holds {count} files.\n\n" +
+                        $"The autosave folder holds {count} files ({FormatBytes(totalBytes)}).\n\n" +
                         $"{TranscriptAutoSaver.DirectoryFor(_settings.AutoSaveDirectory)}\n\n" +
                         "Clear them now?"))
                 {
-                    int cleared = TranscriptAutoSaver.ClearDirectory(_settings.AutoSaveDirectory);
+                    int cleared = TranscriptAutoSaver.ClearDirectory(_settings.AutoSaveDirectory)
+                        + AudioAutoSave.ClearDirectory(_settings.AutoSaveDirectory);
                     _log.Info($"Cleared {cleared} autosave file(s) at startup.");
                 }
             }
@@ -119,6 +133,15 @@ namespace CaptionScribe
             {
                 _log.Warning("Autosave cache check failed: " + ex.Message);
             }
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            const long gib = 1L << 30;
+            const long mib = 1L << 20;
+            return bytes >= gib
+                ? $"{bytes / (double)gib:F1} GiB"
+                : $"{bytes / (double)mib:F1} MiB";
         }
 
         private void OnCaptureError(object? sender, string message)

@@ -13,6 +13,8 @@ namespace CaptionScribe.Tests
         public bool ConfirmYesNoResult { get; set; } = true;
         public SaveCleanup? SaveCleanupResult { get; set; } = SaveCleanup.AsIs;
         public string? MeetingTitleResult { get; set; } = "Test";
+        public bool GroupInFolderResult { get; set; }
+        public bool? LastOfferFolderGroup { get; private set; }
         public string? SaveFilePathResult { get; set; }
         public bool ShowSettingsResult { get; set; }
 
@@ -34,7 +36,11 @@ namespace CaptionScribe.Tests
             BeforeAskSaveCleanup?.Invoke();
             return SaveCleanupResult;
         }
-        public string? PromptMeetingTitle() => MeetingTitleResult;
+        public MeetingTitleChoice? PromptMeetingTitle(bool offerFolderGroup)
+        {
+            LastOfferFolderGroup = offerFolderGroup;
+            return MeetingTitleResult is null ? null : new MeetingTitleChoice(MeetingTitleResult, GroupInFolderResult);
+        }
         public string? PickSaveFile(string suggestedFileName, string? initialDirectory)
         {
             LastSuggestedFileName = suggestedFileName;

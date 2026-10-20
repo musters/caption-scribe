@@ -34,6 +34,7 @@ namespace CaptionScribe.Tests
             Assert.Equal(2, settings.UpscaleFactor);
             Assert.Equal(0.75, settings.SimilarityThreshold);
             Assert.False(settings.EnableDebugLogging);
+            Assert.False(settings.EnableCaptureAudio);
         }
 
         [Fact]
@@ -67,6 +68,7 @@ namespace CaptionScribe.Tests
                 CaptureIntervalMs = 2222,
                 UpscaleFactor = 4,
                 EnableDebugLogging = true,
+                EnableCaptureAudio = true,
                 DefaultSaveDirectory = @"C:\meetings",
             });
 
@@ -75,6 +77,7 @@ namespace CaptionScribe.Tests
             Assert.Equal(2222, loaded.CaptureIntervalMs);
             Assert.Equal(4, loaded.UpscaleFactor);
             Assert.True(loaded.EnableDebugLogging);
+            Assert.True(loaded.EnableCaptureAudio);
             Assert.Equal(@"C:\meetings", loaded.DefaultSaveDirectory);
         }
 

@@ -200,6 +200,21 @@ namespace CaptionScribe.Services
             return Directory.Exists(dir) ? Directory.GetFiles(dir, "scribe-*.txt").Length : 0;
         }
 
+        /// <summary>Total bytes held by autosaved transcripts in the folder.</summary>
+        public static long TotalBytes(string? configuredDir)
+        {
+            var dir = DirectoryFor(configuredDir);
+            if (!Directory.Exists(dir))
+                return 0;
+            long total = 0;
+            foreach (var file in Directory.GetFiles(dir, "scribe-*.txt"))
+            {
+                try { total += new FileInfo(file).Length; }
+                catch { /* skip an unreadable file */ }
+            }
+            return total;
+        }
+
         /// <summary>Deletes autosaved transcripts older than the given age; returns how many were removed.</summary>
         public static int DeleteSavesOlderThan(string? configuredDir, TimeSpan age)
         {

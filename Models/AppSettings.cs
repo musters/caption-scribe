@@ -70,5 +70,11 @@ namespace CaptionScribe.Models
 
         /// <summary>Experimental: on save, also write a participants image (avatars + names) from the capture region.</summary>
         public bool EnableParticipantCapture { get; set; }
+
+        /// <summary>Experimental: record meeting playback (loopback) while capturing captions.</summary>
+        public bool EnableCaptureAudio { get; set; }
+
+        /// <summary>Experimental: also record the microphone as a separate stream (requires Capture Audio).</summary>
+        public bool EnableMicrophoneCapture { get; set; }
     }
 }

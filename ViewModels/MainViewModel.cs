@@ -12,6 +12,7 @@ namespace CaptionScribe.ViewModels
     public sealed class MainViewModel : ObservableObject
     {
         private const int MinUiRefreshMs = 250;
+        private static readonly TimeSpan MeterTick = TimeSpan.FromMilliseconds(50);
 
         private readonly ICaptureController _controller;
         private readonly AppSettings _settings;
@@ -35,6 +36,8 @@ namespace CaptionScribe.ViewModels
         private string _busyMessage = "";
         private Task _busyWork = Task.CompletedTask;
         private long _lastUiRefreshMs;
+        private DispatcherTimer? _meterTimer;
+        private float _audioLevel;
 
         /// <summary>Raised when the user asks to exit; the shell (App) performs the shutdown.</summary>
         public event EventHandler? ExitRequested;
@@ -98,6 +101,9 @@ namespace CaptionScribe.ViewModels
         public bool AutoScroll { get => _autoScroll; set => SetProperty(ref _autoScroll, value); }
 
         public bool IsCapturing => _controller.IsRunning;
+        public bool IsAudioMeterVisible => IsCapturing && _settings.EnableCaptureAudio;
+        public bool IsAudioMeterLive => IsCapturing && _controller.IsAudioCapturing;
+        public float AudioLevel { get => _audioLevel; private set => SetProperty(ref _audioLevel, value); }
         public bool HasContent => _controller.TranscriptLineCount > 0;
         public bool ShowIdleOverlay => !IsCapturing && !HasContent && !IsBusy;
         public string PlayPauseToolTip => IsCapturing ? "Pause capturing" : "Start capturing";
@@ -155,6 +161,21 @@ namespace CaptionScribe.ViewModels
                 OnPropertyChanged();
                 _settingsService.Save(_settings);
                 SyncParticipantCapture();
+            }
+        }
+
+        public bool EnableCaptureAudio
+        {
+            get => _settings.EnableCaptureAudio;
+            set
+            {
+                if (value == _settings.EnableCaptureAudio) return;
+                _settings.EnableCaptureAudio = value;
+                OnPropertyChanged();
+                _settingsService.Save(_settings);
+                _controller.ApplySettings();
+                OnPropertyChanged(nameof(IsAudioMeterVisible));
+                Refresh();
             }
         }
 
@@ -322,6 +343,7 @@ namespace CaptionScribe.ViewModels
             OnPropertyChanged(nameof(ShowAllOutput));
             OnPropertyChanged(nameof(ShowTimestamps));
             OnPropertyChanged(nameof(EnableParticipantCapture));
+            OnPropertyChanged(nameof(EnableCaptureAudio));
             Refresh();
         }
 
@@ -367,14 +389,13 @@ namespace CaptionScribe.ViewModels
             if (_isBusy)
                 return;
             TranscriptText = BuildDisplayText();
-            StatusText = _controller.IsRunning
-                ? "Capturing… Press Spacebar to Pause."
-                : _settings.Region is null
-                    ? "No capture region — Settings ▸ Select Capture Region"
-                    : "Idle";
+            StatusText = BuildStatusText();
             RegionText = _settings.Region is CaptureRegion r
                 ? $"Region: {r.Width}×{r.Height} @ ({r.X}, {r.Y})"
                 : "Region: not set";
+            EnsureMeterTimer();
+            OnPropertyChanged(nameof(IsAudioMeterVisible));
+            OnPropertyChanged(nameof(IsAudioMeterLive));
 
             bool capturing = _controller.IsRunning;
             bool hasContent = _controller.TranscriptLineCount > 0;
@@ -391,6 +412,52 @@ namespace CaptionScribe.ViewModels
             OnPropertyChanged(nameof(ShowIdleOverlay));
             OnPropertyChanged(nameof(PlayPauseToolTip));
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        private string BuildStatusText()
+        {
+            if (!_controller.IsRunning)
+            {
+                return _settings.Region is null
+                    ? "No capture region — Settings ▸ Select Capture Region"
+                    : "Idle";
+            }
+            if (_controller.IsAudioCapturing)
+                return "Capturing captions and audio… Press Spacebar to Pause.";
+            if (_settings.EnableCaptureAudio && _controller.AudioFailed)
+                return "Capturing… Audio unavailable.";
+            return "Capturing… Press Spacebar to Pause.";
+        }
+
+        private void EnsureMeterTimer()
+        {
+            bool want = IsCapturing && _settings.EnableCaptureAudio;
+            if (want)
+            {
+                if (_meterTimer is null)
+                {
+                    _meterTimer = new DispatcherTimer { Interval = MeterTick };
+                    _meterTimer.Tick += OnMeterTick;
+                }
+                if (!_meterTimer.IsEnabled)
+                    _meterTimer.Start();
+                return;
+            }
+            _meterTimer?.Stop();
+            if (_audioLevel != 0)
+                AudioLevel = 0;
+        }
+
+        private void OnMeterTick(object? sender, EventArgs e)
+        {
+            bool live = _controller.IsRunning && _controller.IsAudioCapturing;
+            float level = live ? _controller.AudioLevel : 0;
+            if (Math.Abs(level - _audioLevel) > 0.02f)
+                AudioLevel = level;
+            string status = BuildStatusText();
+            if (status != StatusText)
+                StatusText = status;
+            OnPropertyChanged(nameof(IsAudioMeterLive));
         }
 
         private string BuildDisplayText()

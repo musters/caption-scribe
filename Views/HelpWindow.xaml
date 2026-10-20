@@ -47,7 +47,7 @@
                 <List MarkerStyle="Disc" Padding="22,0,0,0" Margin="0,0,0,4">
                     <ListItem><Paragraph><Bold>File</Bold> — New Scribe, Save Scribe, Active (play/pause), Exit.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Edit</Bold> — Clear, Copy, Show All Output, Timestamps.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, Capture Participants (experimental), and the Settings dialog.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Settings</Bold> — Highlight Capture Region, Select Capture Region, Capture Diagnostics, Capture Participants (experimental), Capture Audio (experimental), and the Settings dialog.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>About</Bold> — Help and About.</Paragraph></ListItem>
                 </List>
 
@@ -58,10 +58,11 @@
                     <ListItem><Paragraph><Bold>Enhance image for OCR</Bold> — grayscale and contrast before recognition; best left on.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Show timestamps</Bold> / <Bold>per-turn</Bold> — prefix lines with the time; per-turn stamps only at each speaker change.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Show all output when idle</Bold> — while capturing, the window always shows the last 200 lines; when paused or idle, this shows up to 10,000. The full transcript is still saved.</Paragraph></ListItem>
-                    <ListItem><Paragraph><Bold>Autosave</Bold> and <Bold>Default save folder</Bold> — where in-progress and final transcripts are written.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Autosave</Bold> and <Bold>Default save folder</Bold> — where in-progress and final transcripts are written. The startup cache prompt appears above the configured file count or 1 GiB and shows the combined autosave size.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Only capture while Teams is in front</Bold> — pauses OCR when Teams isn't over the region, so trailing text isn't recorded after a meeting ends.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Bring Teams to front while capturing</Bold> — experimental; briefly focuses Teams for each grab.</Paragraph></ListItem>
                     <ListItem><Paragraph><Bold>Capture a participants image on save</Bold> — experimental; builds a PNG of names and avatars from the region.</Paragraph></ListItem>
+                    <ListItem><Paragraph><Bold>Capture meeting audio</Bold> — experimental; off by default. While capturing, records meeting playback: Teams’ process when Caption Scribe can see it, otherwise this PC’s default playback device (which can include other apps). Optional <Bold>Record microphone</Bold> (off by default) writes a separate mic WAV; Windows may ask for microphone permission. Mic denial does not stop loopback or captions. The two streams stay separate until Stop/Save, which mixes them into one listening file. Status says <Bold>Capturing captions and audio</Bold> when it is writing, or <Bold>Audio unavailable</Bold> if meeting audio failed or stayed silent. The small meter pulses only while audio is recording. Stop/Save writes MP3 when Windows can encode it, otherwise M4A or WAV. A checkbox can put every file in a folder named after the meeting. Nothing is uploaded. Caption Scribe is not a Teams bot.</Paragraph></ListItem>
                 </List>
 
                 <Paragraph FontSize="15" FontWeight="SemiBold" Foreground="#2B5797" Margin="0,10,0,2">Tips for better accuracy</Paragraph>

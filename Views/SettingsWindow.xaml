@@ -63,7 +63,7 @@
                     ToolTip="Delete autosaved transcripts in this folder" Command="{Binding ClearAutoSaveCommand}" />
         </Grid>
 
-        <TextBlock Text="Prompt to clear the autosave folder when files exceed" />
+        <TextBlock Text="Prompt above this autosave file count or 1 GiB" />
         <TextBox Style="{StaticResource NumberBox}" Text="{Binding AutoSavePromptThreshold, UpdateSourceTrigger=PropertyChanged}" />
 
         <CheckBox Margin="0,0,0,14" IsChecked="{Binding AutoDeleteOldAutoSaves}"
@@ -101,6 +101,12 @@
 
         <CheckBox Margin="0,8,0,0" IsChecked="{Binding EnableParticipantCapture}"
                   Content="Capture a participants image on save (experimental)" />
+
+        <CheckBox Margin="0,8,0,0" IsChecked="{Binding EnableCaptureAudio}"
+                  Content="Capture meeting audio (experimental)" />
+
+        <CheckBox Margin="20,4,0,0" IsChecked="{Binding EnableMicrophoneCapture}"
+                  Content="Record microphone (Windows may ask for permission)" />
 
         <TextBlock Text="Upscale factor (1–4)" Margin="0,12,0,0" />
         <TextBox Style="{StaticResource NumberBox}" Text="{Binding Upscale, UpdateSourceTrigger=PropertyChanged}" />

@@ -4,7 +4,7 @@ Living requirements for **supplementary** audio capture and transcription. On-sc
 
 ## Status
 
-Idea. Not scheduled. No implementation until this document is accepted and scoped.
+Accepted for scheduling. Split into **NEW-0001**–**NEW-0006** in `docs/BACKLOG.md`. Speech-to-text stays later (not those items).
 
 ## Product intent
 
@@ -65,10 +65,10 @@ Do not use `SetWindowsHookEx`. Audio is WASAPI / MMDevice / AudioGraph only.
 ### Session
 
 - Audio follows **Play / Pause / Stop** and tray equivalents.
-- Pause: stop appending STT and pause or stop writing audio (decide: pause file vs gap of silence).
+- Pause: keep the **same file**. Stop writing PCM; on Play append **750 ms** of silence (named constant), not wall-clock pause. Optional later: a pause log for STT/OCR time mapping.
 - Stop/Save: follow [Save flow](#save-flow); finalize audio with the transcript.
 - New Scribe / Clear: start a new audio file; do not mix sessions.
-- Late audio STT after Clear/New Scribe must not attach to the new scribe (same epoch idea as OCR).
+- Late PCM (and later STT) after Clear/New Scribe must not attach to the new scribe (same epoch idea as OCR).
 
 ## Supplementary transcript
 
@@ -116,8 +116,13 @@ When the user is asked for the **meeting title** (existing save prompt), if ther
 
 ## Audio file output
 
+- **Record PCM** into the transcript autosave folder (`%APPDATA%\CaptionScribe\autosave` or the user’s autosave path), same stem as `scribe-yyyyMMdd-HHmmss.txt` (e.g. `scribe-….wav`, `scribe-…-mic.wav` if split).
+- Keep the file open; append PCM; **flush to disk about every 3 s** and **rewrite WAV header sizes** so a crash leaves a playable partial file. On next launch, repair a leftover `.wav` whose header does not match file length. Standard RIFF WAVE, PCM 16-bit.
+- Do not use `%TEMP%`.
+- **Retention:** delete autosave `scribe-*.wav` (and mic siblings) older than **7 days** at startup, even if 30-day text cleanup is off. Do not delete user-exported MP3/WAV next to a saved transcript. Startup cache prompt counts WAV as well as txt.
+- Stop/Save encodes that PCM → **MP3** via Windows Media Foundation when the MP3 sink exists; else M4A/AAC; else copy/keep WAV. No LAME or extra NuGet.
 - Saving audio is implied when **Capture Audio** was on for this scribe and Stop/Save succeeds — not a second “save audio” toggle for v1.
-- Format preference: **MP3**, then M4A/AAC, then WAV.
+- v1 save is **one mixed playback file** (loopback, mic mixed into both stereo channels, clip-safe, if that stream ran). Temp streams stay separate until encode.
 - Do not upload.
 
 ## Settings and privacy (user-facing)
@@ -127,22 +132,29 @@ When the user is asked for the **meeting title** (existing save prompt), if ther
 
 Help and README must stay in sync: menu toggle, status + meter, save-into-folder checkbox, local only, what loopback records, mic permission, OCR remains primary.
 
-## Open questions
+## Settled (was open)
 
-- Pause: keep the audio file open (silence) or segment files?
-- One mixed MP3 vs separate mic and loopback files?
-- If Teams process is missing, auto-fall back to device loopback or disable meeting audio?
-- Show audio STT in the main transcript view, a side panel, or export-only in v1?
-- Meter: mixed mic+loopback peak, or loopback-only?
-- Language pack requirements for Windows speech vs OCR language packs.
-- Exclusive-mode audio apps that never appear in loopback — show a status warning?
-- Maximum recording length / disk budget before autosave folder prompts apply to `.mp3` as well.
+- Exclusive-mode / silent loopback: fail-soft; status **Audio unavailable** (or equivalent) when we are enabled but not writing or peaks stay ~0 — do not look like recording.
+- Meter peak: **max of streams actually capturing** (loopback; mic too when NEW-0005 is on).
+
+## Implementation plan
+
+Order is how we should build it. Each step is a backlog **NEW** item. No extra NuGet; WASAPI / WinRT / Media Foundation only. OCR capture must not regress.
+
+1. **NEW-0001** — Crash-safe PCM autosave writer (no WASAPI yet). Folder, stem, flush, header rewrite, startup repair, 7-day WAV cleanup. Unit-testable.
+2. **NEW-0002** — Device loopback + session. Settings ▸ Capture Audio (off). Play/Pause/Stop, brief pause gap, Clear/New Scribe epoch, fail-soft (captions continue).
+3. **NEW-0003** — Status line + level meter while audio is actually capturing.
+4. **NEW-0004** — Stop/Save: encode PCM → MP3 (MF) with fallback; save-alongside + folder-grouping checkbox.
+5. **NEW-0005** — Microphone as a second stream (consent, off by default; denial does not stop loopback or OCR).
+6. **NEW-0006** — Prefer Teams **process** loopback; fall back to device loopback.
+
+**Later (not NEW yet):** Windows speech-to-text, comparison UI, pause-time map for alignment, AEC polish.
 
 ## v1 vs later
 
-**v1 (minimum useful):** Settings ▸ Capture Audio; loopback + optional mic while capturing; status text + level animation; save audio with transcript; folder-grouping checkbox on the title prompt; STT optional or export-only; no OCR replacement; Help/README.
+**v1 (minimum useful):** NEW-0001–0004 (loopback recording you can save). NEW-0005–0006 complete the capture sources.
 
-**Later:** comparison UI, merge suggestions, stronger speaker-side labeling, AEC polish, process-loopback targeting for more than Teams.
+**Later:** STT, merge/compare, stronger speaker-side labeling, AEC, process-loopback for apps other than Teams.
 
 ## Notes
 

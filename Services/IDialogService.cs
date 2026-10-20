@@ -5,6 +5,18 @@ namespace CaptionScribe.Services
     /// <summary>Whether the transcript should be cleaned before saving.</summary>
     public enum SaveCleanup { Clean, AsIs }
 
+    public readonly struct MeetingTitleChoice
+    {
+        public MeetingTitleChoice(string title, bool groupInFolder)
+        {
+            Title = title;
+            GroupInFolder = groupInFolder;
+        }
+
+        public string Title { get; }
+        public bool GroupInFolder { get; }
+    }
+
     /// <summary>Dialogs the main screen needs, kept behind an interface so view-models stay window-free.</summary>
     public interface IDialogService
     {
@@ -15,7 +27,7 @@ namespace CaptionScribe.Services
         SaveCleanup? AskSaveCleanup();
 
         /// <summary>Prompts for the meeting title; null means the user cancelled.</summary>
-        string? PromptMeetingTitle();
+        MeetingTitleChoice? PromptMeetingTitle(bool offerFolderGroup);
 
         /// <summary>Save-file picker; returns the chosen path, or null if cancelled.</summary>
         string? PickSaveFile(string suggestedFileName, string? initialDirectory);

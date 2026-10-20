@@ -14,6 +14,9 @@ namespace CaptionScribe.Services
         event EventHandler? CaptureStateChanged;
 
         bool IsRunning { get; }
+        bool IsAudioCapturing { get; }
+        bool AudioFailed { get; }
+        float AudioLevel { get; }
         int TranscriptLineCount { get; }
         string AutoSavePath { get; }
         DateTime? SessionStartedAt { get; }
@@ -29,6 +32,7 @@ namespace CaptionScribe.Services
         IReadOnlyList<TimedLine> GetTimedTranscript();
         IReadOnlyList<TimedLine> GetTimedTail(int maxLines);
         TranscriptSnapshot GetExportSnapshot();
+        void FlushAudioForExport();
         string GetCaptureDiagnostics();
     }
 }
