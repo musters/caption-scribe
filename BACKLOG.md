@@ -255,10 +255,10 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0020 — Split MainViewModel
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
-**Where:** `ViewModels/MainViewModel.cs` (~491 lines)
+**Where:** `ViewModels/MainViewModel.cs`
 
 **What:** `TranscriptDisplayText` holds the live/Show-All cap and overflow banner. Save/copy busy pipeline, settings toggles, and participant wiring are still in the VM.
 

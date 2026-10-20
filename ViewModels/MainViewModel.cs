@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -21,8 +19,8 @@ namespace CaptionScribe.ViewModels
         private readonly IDialogService _dialogs;
         private readonly IRegionService _regions;
         private readonly INotificationService _notifications;
-        private readonly ITextFileWriter _fileWriter;
         private readonly IParticipantCollector _participants;
+        private readonly TranscriptExportWorkflow _export;
         private readonly Dispatcher _dispatcher;
 
         private string _transcriptText = "";
@@ -35,7 +33,6 @@ namespace CaptionScribe.ViewModels
         private bool _refreshInitialized;
         private bool _isBusy;
         private string _busyMessage = "";
-        private int _saveGate;
         private Task _busyWork = Task.CompletedTask;
         private long _lastUiRefreshMs;
 
@@ -52,9 +49,9 @@ namespace CaptionScribe.ViewModels
             _dialogs = dialogs;
             _regions = regions;
             _notifications = notifications;
-            _fileWriter = fileWriter;
             _participants = participants;
             _dispatcher = Dispatcher.CurrentDispatcher;
+            _export = new TranscriptExportWorkflow(controller, dialogs, fileWriter, participants, settings, SetBusy, Refresh);
 
             NewScribeCommand = new RelayCommand(NewScribe, () => !IsCapturing && !IsBusy);
             SaveCommand = new RelayCommand(Save, () => HasContent && !IsBusy);
@@ -255,28 +252,7 @@ namespace CaptionScribe.ViewModels
         {
             if (_isBusy)
                 return;
-            _busyWork = CopyAsync();
-        }
-
-        private async Task CopyAsync()
-        {
-            if (Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
-                return;
-            SetBusy(true, "Copying transcript…");
-            try
-            {
-                string text = await Task.Run(() => _controller.GetTranscriptText()).ConfigureAwait(true);
-                if (string.IsNullOrEmpty(text))
-                    return;
-                if (!_dialogs.CopyToClipboard(text))
-                    _dialogs.Info("Copy", "Could not copy the transcript to the clipboard.");
-            }
-            finally
-            {
-                SetBusy(false);
-                Refresh();
-                Interlocked.Exchange(ref _saveGate, 0);
-            }
+            _busyWork = _export.CopyAsync();
         }
 
         private void Save()
@@ -286,76 +262,7 @@ namespace CaptionScribe.ViewModels
             _busyWork = SaveAsync();
         }
 
-        internal async Task<bool> SaveAsync()
-        {
-            if (Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
-                return false;
-
-            SetBusy(true, "Saving transcript…");
-            try
-            {
-                var snapshot = await Task.Run(() => _controller.GetExportSnapshot()).ConfigureAwait(true);
-
-                var cleanup = _dialogs.AskSaveCleanup();
-                if (cleanup is null)
-                    return false;
-
-                var title = _dialogs.PromptMeetingTitle();
-                if (title is null)
-                    return false;
-
-                var suggested = TranscriptExport.SuggestedFileName(snapshot.StartedAt, title);
-
-                var path = _dialogs.PickSaveFile(suggested, _settings.DefaultSaveDirectory);
-                if (path is null)
-                    return false;
-
-                bool timestamps = _settings.ShowTimestamps;
-                bool perTurn = _settings.TimestampsPerTurn;
-                var cleanupMode = cleanup.Value;
-                try
-                {
-                    await Task.Run(() =>
-                    {
-                        string text = TranscriptExport.Build(cleanupMode, timestamps, perTurn, snapshot.Timed, snapshot.Plain);
-                        _fileWriter.Write(path, text);
-                    }).ConfigureAwait(true);
-                }
-                catch (Exception ex)
-                {
-                    _dialogs.Info("Save failed", ex.Message);
-                    return false;
-                }
-
-                await WriteParticipantsImageAsync(path, title.Trim(), snapshot.StartedAt).ConfigureAwait(true);
-                return true;
-            }
-            finally
-            {
-                SetBusy(false);
-                Refresh();
-                Interlocked.Exchange(ref _saveGate, 0);
-            }
-        }
-
-        // Renders the transcript for saving: cleaned-up, timestamped, or plain per the current settings.
-        private async Task WriteParticipantsImageAsync(string transcriptPath, string meetingTitle, DateTime started)
-        {
-            if (!_settings.EnableParticipantCapture || _participants.Count == 0)
-                return;
-            int count = _participants.Count;
-            var pngPath = Path.ChangeExtension(transcriptPath, null) + "-Participants.png";
-            var header = $"{meetingTitle} — {started:yyyy-MM-dd} — {started:HH:mm}\n" +
-                         $"{count} participant{(count == 1 ? "" : "s")}";
-            try
-            {
-                await Task.Run(() => _participants.WriteImage(pngPath, header)).ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                _dialogs.Info("Participants image", "Could not write the participants image: " + ex.Message);
-            }
-        }
+        internal Task<bool> SaveAsync() => _export.SaveAsync();
 
         private void SetBusy(bool busy, string message = "")
         {
