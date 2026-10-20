@@ -53,8 +53,17 @@ namespace CaptionScribe.Services
             var softwareBitmap = CopyToPooledSoftwareBitmap(bitmap);
             var operation = _engine.RecognizeAsync(softwareBitmap);
             OcrResult result;
-            using (token.Register(() => { try { operation.Cancel(); } catch { /* already completed */ } }))
-                result = await operation.AsTask(token);
+            try
+            {
+                using (token.Register(() => { try { operation.Cancel(); } catch { /* already completed */ } }))
+                    result = await operation.AsTask(token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { await operation.AsTask().ConfigureAwait(false); }
+                catch { /* cancelled or failed */ }
+                throw;
+            }
 
             var lines = new List<RecognizedLine>(result.Lines.Count);
             foreach (var line in result.Lines)

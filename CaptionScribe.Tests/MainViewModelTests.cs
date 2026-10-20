@@ -99,6 +99,38 @@ namespace CaptionScribe.Tests
         }
 
         [Fact]
+        public void ToggleActive_AfterAutoPauseBeforeUiRefresh_StopsInsteadOfStarting()
+        {
+            var ctx = new Ctx();
+            ctx.Settings.Region = SomeRegion();
+            ctx.Controller.IsRunning = true;
+            var vm = ctx.Build();
+            ctx.Controller.IsRunning = false;
+
+            vm.ToggleActive();
+
+            Assert.Equal(1, ctx.Controller.StopCalls);
+            Assert.Equal(0, ctx.Controller.StartCalls);
+        }
+
+        [Fact]
+        public void PauseCommand_WhenUiStillShowsCapturing_StopsAndDoesNotStart()
+        {
+            var ctx = new Ctx();
+            ctx.Settings.Region = SomeRegion();
+            ctx.Controller.IsRunning = true;
+            var vm = ctx.Build();
+            ctx.Controller.IsRunning = false;
+
+            Assert.True(vm.PauseCommand.CanExecute(null));
+            Assert.False(vm.PlayCommand.CanExecute(null));
+            vm.PauseCommand.Execute(null);
+
+            Assert.Equal(1, ctx.Controller.StopCalls);
+            Assert.Equal(0, ctx.Controller.StartCalls);
+        }
+
+        [Fact]
         public void ToggleActive_WithNoRegion_PromptsSelection_AndDoesNotStart_WhenCancelled()
         {
             var ctx = new Ctx();   // no region; region picker returns null
@@ -394,6 +426,22 @@ namespace CaptionScribe.Tests
             Assert.Equal(1, ctx.Files.Writes);
             Assert.Equal(@"C:\out\meeting.txt", ctx.Files.LastPath);
             Assert.Equal("line one\nline two", ctx.Files.LastContent);
+        }
+
+        [Fact]
+        public async Task Save_UsesTranscriptSnapshotTakenAtGate_NotTextAddedDuringDialogs()
+        {
+            var ctx = new Ctx();
+            ctx.Controller.TranscriptText = "original";
+            ctx.Controller.TranscriptLineCount = 1;
+            ctx.Dialogs.SaveFilePathResult = @"C:\out\meeting.txt";
+            ctx.Dialogs.BeforeAskSaveCleanup = () => ctx.Controller.TranscriptText = "late ocr";
+            var vm = ctx.Build();
+
+            vm.SaveCommand.Execute(null);
+            await AwaitBusy(vm);
+
+            Assert.Equal("original", ctx.Files.LastContent);
         }
 
         [Fact]

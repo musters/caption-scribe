@@ -28,6 +28,7 @@ namespace CaptionScribe.Services
         string GetTranscriptTailText(int maxLines);
         IReadOnlyList<TimedLine> GetTimedTranscript();
         IReadOnlyList<TimedLine> GetTimedTail(int maxLines);
+        TranscriptSnapshot GetExportSnapshot();
         string GetCaptureDiagnostics();
     }
 }

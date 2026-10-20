@@ -208,8 +208,8 @@ namespace CaptionScribe
                 _tray = new TrayIcon(
                     onOpen: ShowMainWindow,
                     onNewScribe: () => RunTray(_viewModel.NewScribeCommand),
-                    onPlay: () => RunTray(_viewModel.PlayPauseCommand),
-                    onPause: () => RunTray(_viewModel.PlayPauseCommand),
+                    onPlay: () => RunTray(_viewModel.PlayCommand),
+                    onPause: () => RunTray(_viewModel.PauseCommand),
                     onStop: () => RunTray(_viewModel.StopCommand),
                     onShowRegion: () => RunTray(_viewModel.HighlightCommand),
                     onSetRegion: () => RunTray(_viewModel.SelectRegionCommand),
@@ -241,7 +241,15 @@ namespace CaptionScribe
             _singleInstance?.Dispose();
             _singleInstance = null;
             _regionService?.Dispose();
-            _controller?.Dispose();
+            var controller = _controller;
+            if (controller is not null)
+            {
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try { controller.Dispose(); }
+                    catch (Exception ex) { _log?.Warning("Capture dispose failed: " + ex.Message); }
+                });
+            }
             _tray?.Dispose();
         }
 

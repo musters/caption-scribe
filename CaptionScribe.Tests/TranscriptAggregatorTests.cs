@@ -215,5 +215,14 @@ namespace CaptionScribe.Tests
             var tail = agg.GetTimedTail(2);
             Assert.Equal(new[] { "l2", "l3" }, tail.Select(t => t.Text).ToArray());
         }
+
+        [Fact]
+        public void GetExportSnapshot_ReturnsMatchingTimedAndPlain()
+        {
+            var agg = WithSnapshots(new[] { "alpha" }, new[] { "beta" });
+            var (timed, plain) = agg.GetExportSnapshot();
+            Assert.Equal(new[] { "alpha", "beta" }, timed.Select(t => t.Text).ToArray());
+            Assert.Equal("alpha" + Environment.NewLine + "beta", plain);
+        }
     }
 }

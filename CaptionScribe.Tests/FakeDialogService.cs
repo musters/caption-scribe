@@ -1,3 +1,4 @@
+using System;
 using CaptionScribe.Models;
 using CaptionScribe.Services;
 
@@ -26,7 +27,13 @@ namespace CaptionScribe.Tests
 
         public bool ConfirmOkCancel(string title, string message) => ConfirmOkCancelResult;
         public bool ConfirmYesNo(string title, string message) => ConfirmYesNoResult;
-        public SaveCleanup? AskSaveCleanup() => SaveCleanupResult;
+        public Action? BeforeAskSaveCleanup { get; set; }
+
+        public SaveCleanup? AskSaveCleanup()
+        {
+            BeforeAskSaveCleanup?.Invoke();
+            return SaveCleanupResult;
+        }
         public string? PromptMeetingTitle() => MeetingTitleResult;
         public string? PickSaveFile(string suggestedFileName, string? initialDirectory)
         {

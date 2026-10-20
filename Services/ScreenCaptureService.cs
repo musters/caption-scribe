@@ -101,81 +101,98 @@ namespace CaptionScribe.Services
 
         public void Dispose() => ReleaseBuffers();
 
-        private readonly object _sampleGate = new();
-        private byte[]? _prevSample;
-        private byte[]? _currSample;
+        private readonly LumaSampler _rawChange = new();
+        private readonly LumaSampler _processedChange = new();
 
-        /// <summary>True when the frame differs enough from the last accepted one to warrant OCR.</summary>
-        public unsafe bool HasMeaningfulChange(Bitmap bitmap)
-        {
-            const int sampleStep = 4;
-            const int bytesPerPixel = 4;
-            const int blue = 0, green = 1, red = 2;
-            const int lumRed = 77, lumGreen = 150, lumBlue = 29, lumShift = 8;
-            const int minChangedSamples = 2;
-            const int changedSampleDivisor = 40;
-            const int minLumaDelta = 12;
+        /// <summary>True when the raw frame differs enough from the last accepted one to warrant processing.</summary>
+        public bool HasMeaningfulChange(Bitmap bitmap) => _rawChange.HasChange(bitmap);
 
-            var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
-            var data = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                lock (_sampleGate)
-                {
-                    int w = bitmap.Width, h = bitmap.Height;
-                    int nx = (w + sampleStep - 1) / sampleStep;
-                    int ny = (h + sampleStep - 1) / sampleStep;
-                    int n = nx * ny;
-                    if (_currSample is null || _currSample.Length != n)
-                        _currSample = new byte[n];
-
-                    byte* src = (byte*)data.Scan0;
-                    int i = 0;
-                    for (int y = 0; y < h; y += sampleStep)
-                    {
-                        byte* row = src + (long)y * data.Stride;
-                        for (int x = 0; x < w; x += sampleStep)
-                        {
-                            byte* px = row + x * bytesPerPixel;
-                            int luma = (px[red] * lumRed + px[green] * lumGreen + px[blue] * lumBlue) >> lumShift;
-                            _currSample[i++] = (byte)luma;
-                        }
-                    }
-
-                    if (_prevSample is null || _prevSample.Length != n)
-                    {
-                        _prevSample = (byte[])_currSample.Clone();
-                        return true;
-                    }
-
-                    int threshold = Math.Max(minChangedSamples, n / changedSampleDivisor);
-                    int changed = 0;
-                    for (i = 0; i < n; i++)
-                    {
-                        int d = _currSample[i] - _prevSample[i];
-                        if (d < 0) d = -d;
-                        if (d > minLumaDelta && ++changed >= threshold)
-                            break;
-                    }
-                    if (changed < threshold)
-                        return false;
-
-                    Buffer.BlockCopy(_currSample, 0, _prevSample, 0, n);
-                    return true;
-                }
-            }
-            finally
-            {
-                bitmap.UnlockBits(data);
-            }
-        }
+        /// <summary>True when the processed/grayscale OCR image differs enough to warrant Recognize.</summary>
+        public bool HasMeaningfulProcessedChange(Bitmap bitmap) => _processedChange.HasChange(bitmap);
 
         public void ResetChangeDetection()
         {
-            lock (_sampleGate)
+            _rawChange.Reset();
+            _processedChange.Reset();
+        }
+
+        private sealed class LumaSampler
+        {
+            private const int SampleStep = 4;
+            private const int BytesPerPixel = 4;
+            private const int Blue = 0, Green = 1, Red = 2;
+            private const int LumRed = 77, LumGreen = 150, LumBlue = 29, LumShift = 8;
+            private const int MinChangedSamples = 2;
+            private const int ChangedSampleDivisor = 40;
+            private const int MinLumaDelta = 12;
+
+            private readonly object _gate = new();
+            private byte[]? _prevSample;
+            private byte[]? _currSample;
+
+            public unsafe bool HasChange(Bitmap bitmap)
             {
-                _prevSample = null;
-                _currSample = null;
+                var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+                var data = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    lock (_gate)
+                    {
+                        int w = bitmap.Width, h = bitmap.Height;
+                        int nx = (w + SampleStep - 1) / SampleStep;
+                        int ny = (h + SampleStep - 1) / SampleStep;
+                        int n = nx * ny;
+                        if (_currSample is null || _currSample.Length != n)
+                            _currSample = new byte[n];
+
+                        byte* src = (byte*)data.Scan0;
+                        int i = 0;
+                        for (int y = 0; y < h; y += SampleStep)
+                        {
+                            byte* row = src + (long)y * data.Stride;
+                            for (int x = 0; x < w; x += SampleStep)
+                            {
+                                byte* px = row + x * BytesPerPixel;
+                                int luma = (px[Red] * LumRed + px[Green] * LumGreen + px[Blue] * LumBlue) >> LumShift;
+                                _currSample[i++] = (byte)luma;
+                            }
+                        }
+
+                        if (_prevSample is null || _prevSample.Length != n)
+                        {
+                            _prevSample = (byte[])_currSample.Clone();
+                            return true;
+                        }
+
+                        int threshold = Math.Max(MinChangedSamples, n / ChangedSampleDivisor);
+                        int changed = 0;
+                        for (i = 0; i < n; i++)
+                        {
+                            int d = _currSample[i] - _prevSample[i];
+                            if (d < 0) d = -d;
+                            if (d > MinLumaDelta && ++changed >= threshold)
+                                break;
+                        }
+                        if (changed < threshold)
+                            return false;
+
+                        Buffer.BlockCopy(_currSample, 0, _prevSample, 0, n);
+                        return true;
+                    }
+                }
+                finally
+                {
+                    bitmap.UnlockBits(data);
+                }
+            }
+
+            public void Reset()
+            {
+                lock (_gate)
+                {
+                    _prevSample = null;
+                    _currSample = null;
+                }
             }
         }
 

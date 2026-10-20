@@ -17,7 +17,6 @@ namespace CaptionScribe.Services
         private readonly WindowService _windows = new();
         private readonly FocusAwareGrabber _grabber;
         private readonly TranscriptAggregator _aggregator;
-        private readonly TranscriptAutoSaver _autoSaver;
         private readonly AppSettings _settings;
         private readonly ILog _log;
         private readonly IFrameObserver? _frameObserver;
@@ -27,10 +26,12 @@ namespace CaptionScribe.Services
 
         private readonly object _lifecycle = new();
         private readonly object _transcriptGate = new();
+        private readonly AutosaveScheduler _autosave;
         private volatile CancellationTokenSource? _cts;
         private Task? _loop;
         private volatile bool _running;
         private volatile bool _startQueued;
+        private int _lifecycleEpoch;
         private int _transcriptEpoch;
 
         // Set once when capture pauses because Teams isn't over the region; reset when it returns.
@@ -57,7 +58,7 @@ namespace CaptionScribe.Services
 
         public bool IsRunning => _running;
         public bool OcrAvailable => _ocr.IsAvailable;
-        public string AutoSavePath => _autoSaver.CurrentPath;
+        public string AutoSavePath => _autosave.CurrentPath;
         public DateTime? SessionStartedAt => _sessionStartedAt;
 
         public CaptureController(AppSettings settings, ILog log, IFrameObserver? frameObserver = null)
@@ -68,10 +69,11 @@ namespace CaptionScribe.Services
             _snapshot = CaptureSettings.From(settings);
             _grabber = new FocusAwareGrabber(_capture, _windows);
             _aggregator = new TranscriptAggregator(settings.SimilarityThreshold);
-            _autoSaver = new TranscriptAutoSaver(
+            var autoSaver = new TranscriptAutoSaver(
                 start => _aggregator.GetLinesFrom(start),
                 () => _settings.AutoSaveDirectory,
                 log);
+            _autosave = new AutosaveScheduler(autoSaver, log);
         }
 
         public void UpdateRegion(CaptureRegion region)
@@ -89,31 +91,45 @@ namespace CaptionScribe.Services
 
         public void Start()
         {
-            if (_running || _startQueued)
-                return;
-
             Task? loop;
+            int epoch;
             lock (_lifecycle)
             {
-                if (_running)
+                if (_running || _startQueued)
                     return;
-                _running = false;
                 try { _cts?.Cancel(); } catch { /* already disposed */ }
                 loop = _loop;
-                _loop = null;
+                epoch = _lifecycleEpoch;
+                _startQueued = true;
             }
 
             void AfterJoin()
             {
-                ObserveLoop(loop);
-                lock (_lifecycle)
+                try
                 {
-                    if (_loop is null)
-                        _cts = null;
+                    ObserveLoop(loop);
+                    lock (_lifecycle)
+                    {
+                        if (ReferenceEquals(_loop, loop))
+                        {
+                            _loop = null;
+                            _cts = null;
+                        }
+                        if (epoch != _lifecycleEpoch)
+                            return;
+                    }
+                    BeginCapture(epoch);
                 }
-                try { BeginCapture(); }
-                finally { _startQueued = false; }
-                CaptureStateChanged?.Invoke(this, EventArgs.Empty);
+                catch (Exception ex)
+                {
+                    _log.Warning("Capture start after join failed: " + ex.Message);
+                }
+                finally
+                {
+                    lock (_lifecycle)
+                        _startQueued = false;
+                    CaptureStateChanged?.Invoke(this, EventArgs.Empty);
+                }
             }
 
             if (loop is null || loop.IsCompleted)
@@ -122,24 +138,15 @@ namespace CaptionScribe.Services
                 return;
             }
 
-            _startQueued = true;
-            loop.ContinueWith(_ =>
-            {
-                try { AfterJoin(); }
-                catch (Exception ex)
-                {
-                    _startQueued = false;
-                    _log.Warning("Capture start after join failed: " + ex.Message);
-                }
-            }, TaskScheduler.Default);
+            loop.ContinueWith(_ => AfterJoin(), TaskScheduler.Default);
         }
 
-        private void BeginCapture()
+        private void BeginCapture(int epoch)
         {
             bool started = false;
             lock (_lifecycle)
             {
-                if (_running)
+                if (_running || epoch != _lifecycleEpoch)
                     return;
                 if (_snapshot.Region is null)
                     return;
@@ -164,27 +171,26 @@ namespace CaptionScribe.Services
 
             if (!started)
                 return;
-            _autoSaver.Start(TimeSpan.FromMinutes(Math.Max(AppSettings.MinAutoSaveIntervalMinutes, _settings.AutoSaveIntervalMinutes)));
+            var interval = TimeSpan.FromMinutes(Math.Max(AppSettings.MinAutoSaveIntervalMinutes, _settings.AutoSaveIntervalMinutes));
+            _autosave.EnqueueStart(interval, () => Volatile.Read(ref _lifecycleEpoch) == epoch && _running);
             _log.Info("Capture started.");
         }
 
         public void Stop()
         {
-            bool wasRunning;
+            bool wasActive;
             lock (_lifecycle)
             {
-                wasRunning = _running;
+                wasActive = _running || _startQueued;
+                _lifecycleEpoch++;
                 _running = false;
+                _startQueued = false;
                 try { _cts?.Cancel(); } catch { /* already disposed */ }
             }
-            if (wasRunning)
+            if (wasActive)
             {
                 _log.Info("Capture stopped.");
-                ThreadPool.QueueUserWorkItem(_ =>
-                {
-                    try { _autoSaver.Stop(); }
-                    catch (Exception ex) { _log.Warning("Autosave stop failed: " + ex.Message); }
-                });
+                _autosave.EnqueueStop();
             }
         }
 
@@ -342,6 +348,8 @@ namespace CaptionScribe.Services
             Bitmap ocrImage = (scale > 1 || s.EnhanceForOcr || overCap)
                 ? _capture.Process(raw, scale, s.EnhanceForOcr)
                 : raw;
+            if (!ReferenceEquals(ocrImage, raw) && !_capture.HasMeaningfulProcessedChange(ocrImage))
+                return;
 
             int epoch = Volatile.Read(ref _transcriptEpoch);
             var layout = await _ocr.RecognizeLayoutAsync(ocrImage,
@@ -450,17 +458,23 @@ namespace CaptionScribe.Services
 
         public IReadOnlyList<TimedLine> GetTimedTail(int maxLines) => _aggregator.GetTimedTail(maxLines);
 
+        public TranscriptSnapshot GetExportSnapshot()
+        {
+            var (timed, plain) = _aggregator.GetExportSnapshot();
+            return new TranscriptSnapshot(timed, plain, _sessionStartedAt ?? DateTime.Now);
+        }
+
         public void ClearTranscript()
         {
             // Finalize the outgoing file before clearing, so the previous transcript is complete on disk.
-            _autoSaver.Flush(final: true);
+            _autosave.Flush(final: true);
             lock (_transcriptGate)
             {
                 _transcriptEpoch++;
                 _lastOcrTexts = null;
                 _aggregator.Clear();
             }
-            _autoSaver.Roll();
+            _autosave.Roll();
             _capture.ResetChangeDetection();
             _sessionStartedAt = _running ? DateTime.Now : null;
             _log.Info("Transcript cleared.");
@@ -471,11 +485,13 @@ namespace CaptionScribe.Services
         {
             lock (_lifecycle)
             {
+                _lifecycleEpoch++;
                 _running = false;
+                _startQueued = false;
                 try { _cts?.Cancel(); } catch { /* already disposed */ }
             }
             JoinPending();
-            _autoSaver.Dispose();
+            _autosave.Dispose();
             _ocr.Dispose();
             _capture.Dispose();
         }

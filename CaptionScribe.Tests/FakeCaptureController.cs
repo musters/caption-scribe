@@ -37,6 +37,8 @@ namespace CaptionScribe.Tests
         public string GetTranscriptTailText(int maxLines) => TranscriptText;
         public IReadOnlyList<TimedLine> GetTimedTranscript() => TimedLines;
         public IReadOnlyList<TimedLine> GetTimedTail(int maxLines) => TimedLines;
+        public TranscriptSnapshot GetExportSnapshot()
+            => new(TimedLines, TranscriptText, SessionStartedAt ?? DateTime.Now);
         public string GetCaptureDiagnostics() => CaptureDiagnostics;
 
         public void RaiseTranscriptUpdated() => TranscriptUpdated?.Invoke(this, EventArgs.Empty);

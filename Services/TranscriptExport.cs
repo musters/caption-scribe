@@ -6,6 +6,20 @@ using CaptionScribe.Models;
 namespace CaptionScribe.Services
 {
     /// <summary>Builds save file names and transcript text for export (cleanup / timestamps / plain).</summary>
+    public readonly struct TranscriptSnapshot
+    {
+        public TranscriptSnapshot(IReadOnlyList<TimedLine> timed, string plain, DateTime startedAt)
+        {
+            Timed = timed;
+            Plain = plain;
+            StartedAt = startedAt;
+        }
+
+        public IReadOnlyList<TimedLine> Timed { get; }
+        public string Plain { get; }
+        public DateTime StartedAt { get; }
+    }
+
     public static class TranscriptExport
     {
         public static string SuggestedFileName(DateTime started, string title)

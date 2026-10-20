@@ -13,10 +13,6 @@ namespace CaptionScribe.ViewModels
 {
     public sealed class MainViewModel : ObservableObject
     {
-        private const int TailLineCount = 200;
-
-        // Show All Output cap when idle/paused (~10k lines ≈ 5h dense / ~8h at the measured rate). Live capture always uses TailLineCount.
-        private const int AllOutputLineCount = 10_000;
         private const int MinUiRefreshMs = 250;
 
         private readonly ICaptureController _controller;
@@ -64,6 +60,8 @@ namespace CaptionScribe.ViewModels
             SaveCommand = new RelayCommand(Save, () => HasContent && !IsBusy);
             ClearCommand = new RelayCommand(Clear, () => HasContent && !IsBusy);
             CopyCommand = new RelayCommand(Copy, () => HasContent && !IsBusy);
+            PlayCommand = new RelayCommand(Play, () => !IsBusy && !_lastCapturing);
+            PauseCommand = new RelayCommand(Pause, () => !IsBusy && _lastCapturing);
             PlayPauseCommand = new RelayCommand(ToggleActive, () => !IsBusy);
             StopCommand = new RelayCommand(StopAndSave, () => IsCapturing && !IsBusy);
             HighlightCommand = new RelayCommand(Highlight, () => !IsBusy);
@@ -84,6 +82,8 @@ namespace CaptionScribe.ViewModels
         public ICommand SaveCommand { get; }
         public ICommand ClearCommand { get; }
         public ICommand CopyCommand { get; }
+        public ICommand PlayCommand { get; }
+        public ICommand PauseCommand { get; }
         public ICommand PlayPauseCommand { get; }
         public ICommand StopCommand { get; }
         public ICommand HighlightCommand { get; }
@@ -113,7 +113,13 @@ namespace CaptionScribe.ViewModels
         public bool IsActive
         {
             get => IsCapturing;
-            set { if (!_isBusy && value != IsCapturing) ToggleActive(); }
+            set
+            {
+                if (_isBusy || value == IsCapturing)
+                    return;
+                if (value) Play();
+                else Pause();
+            }
         }
 
         public bool ShowAllOutput
@@ -160,22 +166,33 @@ namespace CaptionScribe.ViewModels
         {
             if (_isBusy)
                 return;
-            if (IsCapturing)
-            {
-                _controller.Stop();
-                _participants.Stop();
-            }
+            if (_lastCapturing)
+                Pause();
             else
+                Play();
+        }
+
+        private void Play()
+        {
+            if (_isBusy)
+                return;
+            if (_settings.Region is null)
             {
-                if (_settings.Region is null)
-                {
-                    SelectRegion();
-                    if (_settings.Region is null) { Refresh(); return; }
-                }
-                _controller.Start();
-                if (_settings.EnableParticipantCapture)
-                    _participants.Start();
+                SelectRegion();
+                if (_settings.Region is null) { Refresh(); return; }
             }
+            _controller.Start();
+            if (_settings.EnableParticipantCapture)
+                _participants.Start();
+            Refresh();
+        }
+
+        private void Pause()
+        {
+            if (_isBusy)
+                return;
+            _controller.Stop();
+            _participants.Stop();
             Refresh();
         }
 
@@ -277,6 +294,8 @@ namespace CaptionScribe.ViewModels
             SetBusy(true, "Saving transcript…");
             try
             {
+                var snapshot = await Task.Run(() => _controller.GetExportSnapshot()).ConfigureAwait(true);
+
                 var cleanup = _dialogs.AskSaveCleanup();
                 if (cleanup is null)
                     return false;
@@ -285,15 +304,12 @@ namespace CaptionScribe.ViewModels
                 if (title is null)
                     return false;
 
-                var started = _controller.SessionStartedAt ?? DateTime.Now;
-                var suggested = TranscriptExport.SuggestedFileName(started, title);
+                var suggested = TranscriptExport.SuggestedFileName(snapshot.StartedAt, title);
 
                 var path = _dialogs.PickSaveFile(suggested, _settings.DefaultSaveDirectory);
                 if (path is null)
                     return false;
 
-                var timed = _controller.GetTimedTranscript();
-                var plain = _controller.GetTranscriptText();
                 bool timestamps = _settings.ShowTimestamps;
                 bool perTurn = _settings.TimestampsPerTurn;
                 var cleanupMode = cleanup.Value;
@@ -301,7 +317,7 @@ namespace CaptionScribe.ViewModels
                 {
                     await Task.Run(() =>
                     {
-                            string text = TranscriptExport.Build(cleanupMode, timestamps, perTurn, timed, plain);
+                        string text = TranscriptExport.Build(cleanupMode, timestamps, perTurn, snapshot.Timed, snapshot.Plain);
                         _fileWriter.Write(path, text);
                     }).ConfigureAwait(true);
                 }
@@ -311,7 +327,7 @@ namespace CaptionScribe.ViewModels
                     return false;
                 }
 
-                await WriteParticipantsImageAsync(path, title.Trim(), started).ConfigureAwait(true);
+                await WriteParticipantsImageAsync(path, title.Trim(), snapshot.StartedAt).ConfigureAwait(true);
                 return true;
             }
             finally
@@ -472,19 +488,16 @@ namespace CaptionScribe.ViewModels
 
         private string BuildDisplayText()
         {
-            // Live capture always shows the last 200 lines. Show All Output is a paused/idle snapshot (up to 10k).
-            int cap = (!_controller.IsRunning && _settings.ShowAllOutput) ? AllOutputLineCount : TailLineCount;
-            bool timestamps = _settings.ShowTimestamps;
-
-            string tail = timestamps
-                ? TranscriptFormatter.Format(_controller.GetTimedTail(cap), true, _settings.TimestampsPerTurn)
-                : _controller.GetTranscriptTailText(cap);
-
-            if (_controller.TranscriptLineCount <= cap)
-                return tail;
-
-            return $"… showing the last {cap} lines (the full transcript is captured and will be saved) …"
-                   + Environment.NewLine + tail;
+            bool capturing = _controller.IsRunning;
+            int cap = TranscriptDisplayText.LineCap(capturing, _settings.ShowAllOutput);
+            return TranscriptDisplayText.Build(
+                capturing,
+                _settings.ShowAllOutput,
+                _settings.ShowTimestamps,
+                _settings.TimestampsPerTurn,
+                _controller.TranscriptLineCount,
+                _controller.GetTranscriptTailText(cap),
+                _controller.GetTimedTail(cap));
         }
 
     }

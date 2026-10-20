@@ -24,11 +24,11 @@ _(none yet — product ideas such as audio live in `docs/ideas/`)_
 **Status:** DONE  
 **Priority:** HIGH
 
-**Where:** `Services/CaptureController.cs` (~214, 252), `ViewModels/MainViewModel.cs` (~156)
+**Where:** `Services/CaptureController.cs` (`Start`/`Stop`/`AfterJoin`), `ViewModels/MainViewModel.cs` (`ToggleActive`), `App.xaml.cs` (tray Play/Pause)
 
-**What:** After consecutive capture failures the loop sets `_running = false` in `finally` and then raises `CaptureStateChanged`. Until the UI `Refresh`/`SetActive` runs, `IsCapturing` is already false. A Pause click in that window sees idle and calls `Start()`, so the user restarts capture while trying to pause.
+**What:** Loop exit no longer clears `_running` before `AutoPause`→`Stop()`, but Pause is still `ToggleActive()`. After `Stop()`, `IsCapturing` is already false while the Pause icon/tray item can lag, so a Pause click (toolbar, Space, tray Pause→`PlayPauseCommand`) calls `Start()`. `Start()`’s `AfterJoin` also ignores a Pause that happens while the previous loop is joining.
 
-**Fix later:** Leave `_running` true until `AutoPause`/`Stop()` runs, then fire `CaptureStateChanged`. Make Pause always `Stop()` (idempotent). Do not treat “loop already exiting” as Play.
+**Fix:** Pause always `Stop()` (idempotent). Tray Pause must not share the Play toggle. Toggle uses last UI-published capturing state, not live `IsRunning`. Invalidate a queued `AfterJoin`/`BeginCapture` on `Stop`/`Dispose`.
 
 ---
 
@@ -63,11 +63,11 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 **Status:** DONE  
 **Priority:** HIGH
 
-**Where:** `Services/ScreenCaptureService.cs` (`HasMeaningfulChange`, step 4, threshold `n/200`)
+**Where:** `Services/ScreenCaptureService.cs` (`HasMeaningfulChange`), `Services/CaptureController.cs` (`RecognizeCaptionsAsync`)
 
-**What:** Compare is native color (green samples), not the enhanced OCR image. Video, carets, or anti-aliased edges easily exceed 0.5% of samples, so upscale+OCR runs every interval even when caption *text* is idle.
+**What:** Raw luma compare is tighter (`n/40`, min luma delta 12) and unchanged OCR text skips `AddSnapshot`, but that skip is *after* OCR. Video/caret motion that beats the raw threshold still upscales + OCRs every interval.
 
-**Fix:** Raise threshold and/or compare after grayscale; ignore low-contrast pixels; skip OCR when the last recognized line list is unchanged.
+**Fix:** Keep the raw gate; also fingerprint the processed/grayscale OCR image and skip `Recognize` when that has not changed.
 
 ### AUDIT-0004 — New SoftwareBitmap (full copy) every OCR
 
@@ -162,11 +162,11 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 **Status:** DONE  
 **Priority:** HIGH
 
-**Where:** `ViewModels/MainViewModel.cs` `SaveAsync` / `StopAndSaveAsync`, tray in `App.xaml.cs` / `TrayIcon.cs`
+**Where:** `ViewModels/MainViewModel.cs` `SaveAsync` / `StopAndSaveAsync`
 
-**What:** `_saveGate` is taken immediately, but `SetBusy` waits until after cleanup/title/file dialogs. Nested dialogs pump messages, so tray Play/Pause/Stop/New Scribe/Exit still run. Pause/Stop during Save can stop capture; Play during Stop+Save then a successful save can `ClearTranscript()` on the restarted session.
+**What:** Busy-before-dialogs and Stop+Save-no-clear-if-restarted are in. Transcript is still read *after* dialogs (`GetTimedTranscript` / `GetTranscriptText`), so in-flight OCR during Save-while-capturing is included. The two reads are not atomic.
 
-**Fix:** Set busy/reentrancy (and tray `SetBusy`) before any dialog. Snapshot the timed transcript at gate entry. `StopAndSave` must not clear if capture was restarted. Tray Exit should use the same gate.
+**Fix:** Snapshot timed + plain (one aggregator lock) at gate entry, off the UI thread; dialogs and write use that snapshot.
 
 ### AUDIT-0013 — Pause/Stop can still block the UI on autosave flush
 
@@ -184,11 +184,11 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 **Status:** DONE  
 **Priority:** HIGH
 
-**Where:** `Services/CaptureController.cs` `JoinPending` (Play-after-Pause, Dispose)
+**Where:** `Services/CaptureController.cs` `ObserveLoop` / `Dispose`, `App.xaml.cs` `ReleaseStartupHandles`
 
-**What:** `loop.GetAwaiter().GetResult()` on the dispatcher. WinRT `RecognizeAsync` often ignores `Cancel()` until it finishes, so Play-after-Pause and shutdown can freeze the UI for seconds. The join itself is required so pooled bitmaps are not shared.
+**What:** Play-after-Pause joins via `ContinueWith` (not dispatcher `GetResult`). `Dispose` still `JoinPending`→`GetResult()` on the UI thread (`OnExit` / session ending). Cancelled `RecognizeAsync` can complete the loop task while WinRT still holds the pooled `SoftwareBitmap`.
 
-**Fix:** Join before Start/Dispose, but await the old loop off the dispatcher (`async` Start/Dispose, or join on a worker then continue Start). Do not `GetResult()` on the UI thread.
+**Fix:** Never `GetResult()` on the dispatcher (dispose on a worker). Await in-flight WinRT OCR before reusing the pool or completing the loop task. Invalidate queued `BeginCapture` on Dispose.
 
 ### AUDIT-0015 — Autosave Flush vs Clear race
 
@@ -244,25 +244,25 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0019 — Split CaptureController
 
-**Status:** DONE  
+**Status:** OPEN  
 **Priority:** MED
 
-**Where:** `Services/CaptureController.cs` (~454 lines)
+**Where:** `Services/CaptureController.cs` (~483 lines)
 
-**What:** One type owns loop lifecycle, OCR, Teams gating, transcript epoch, autosave, diagnostics, and focus-switch grab. Harder to test and easy to reintroduce UI-thread joins.
+**What:** `FocusAwareGrabber`, `CaptureFailurePolicy`, `CaptureSettings`, and `AutosaveScheduler` were extracted. The controller still owns loop lifecycle, OCR apply, Teams gating, transcript epoch, and diagnostics.
 
-**Fix:** Extract collaborators (e.g. loop runner, grab/focus-switch, transcript apply) while keeping `ICaptureController` as the VM façade. No new NuGet.
+**Fix:** Keep extracting collaborators (loop runner, transcript apply) while `ICaptureController` stays the VM façade. No new NuGet.
 
 ### AUDIT-0020 — Split MainViewModel
 
-**Status:** DONE  
+**Status:** OPEN  
 **Priority:** MED
 
-**Where:** `ViewModels/MainViewModel.cs` (~441 lines)
+**Where:** `ViewModels/MainViewModel.cs` (~491 lines)
 
-**What:** Commands, save/copy busy pipeline, display refresh, settings toggles, and participant wiring live in one VM. Save/busy reentrancy bugs clustered here.
+**What:** `TranscriptDisplayText` holds the live/Show-All cap and overflow banner. Save/copy busy pipeline, settings toggles, and participant wiring are still in the VM.
 
-**Fix:** Extract save/export and display-refresh helpers (or a small save service) so the VM stays command routing + state.
+**Fix:** Extract save/export (or a small save service) so the VM stays command routing + state.
 
 ### AUDIT-0021 — Split App startup shell
 
@@ -274,3 +274,14 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 **What:** Single-instance mutex/event, tray wiring, exception handlers, window-vs-region placement, and autosave-cache prompt are all in `App`.
 
 **Fix:** Move single-instance and tray host to small types under `Core/Shell` (alongside `TrayIcon`). Keep `App` as composition root.
+
+### AUDIT-0022 — Pause then Play can kill the new autosave timer
+
+**Status:** DONE  
+**Priority:** HIGH
+
+**Where:** `Services/CaptureController.cs` `Stop` / `BeginCapture`, `Services/TranscriptAutoSaver.cs`
+
+**What:** `Stop()` (Pause) queues `_autoSaver.Stop()` on the thread pool so the UI does not flush. `BeginCapture` then calls `_autoSaver.Start()` on the caller. If Play wins the race, Stop’s `WaitAndDropTimer` disposes the *new* timer and autosave stays dead for the rest of the session. `Start()` also sets `_running` and then starts autosave outside `_lifecycle`, so Pause in that window can cancel capture and still let `Start()` recreate the timer.
+
+**Fix:** Serialize autosave Start/Stop/Dispose on one worker chain. Skip a queued Start when Stop/Dispose has moved the lifecycle epoch.

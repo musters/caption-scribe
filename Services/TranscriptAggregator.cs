@@ -246,6 +246,12 @@ namespace CaptionScribe.Services
             }
         }
 
+        public (IReadOnlyList<TimedLine> Timed, string Plain) GetExportSnapshot()
+        {
+            lock (_gate)
+                return (BuildTimed(0), string.Join(Environment.NewLine, _lines));
+        }
+
         public IReadOnlyList<TimedLine> GetTimedLines()
         {
             lock (_gate)

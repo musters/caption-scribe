@@ -8,6 +8,20 @@ namespace CaptionScribe.Tests
     public class ScreenCaptureServiceTests
     {
         [Fact]
+        public void HasMeaningfulProcessedChange_IsIndependentOfRawSampler()
+        {
+            using var svc = new ScreenCaptureService();
+            using var raw = new Bitmap(64, 64, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(raw)) g.Clear(Color.White);
+
+            Assert.True(svc.HasMeaningfulChange(raw));
+            var processed = svc.Process(raw, 1, enhance: true);
+            Assert.True(svc.HasMeaningfulProcessedChange(processed));
+            Assert.False(svc.HasMeaningfulProcessedChange(processed));
+            Assert.False(svc.HasMeaningfulChange(raw));
+        }
+
+        [Fact]
         public void HasMeaningfulChange_FirstFrameAndRealChange_NotTinyNoise()
         {
             using var svc = new ScreenCaptureService();
