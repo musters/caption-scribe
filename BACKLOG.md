@@ -244,10 +244,10 @@ Performance and scalability first, then correctness / quality. Hour-long meeting
 
 ### AUDIT-0019 — Split CaptureController
 
-**Status:** OPEN  
+**Status:** DONE  
 **Priority:** MED
 
-**Where:** `Services/CaptureController.cs` (~483 lines)
+**Where:** `Services/CaptureController.cs`
 
 **What:** `FocusAwareGrabber`, `CaptureFailurePolicy`, `CaptureSettings`, and `AutosaveScheduler` were extracted. The controller still owns loop lifecycle, OCR apply, Teams gating, transcript epoch, and diagnostics.
 
